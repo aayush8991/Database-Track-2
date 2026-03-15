@@ -72,13 +72,14 @@ class MongoHandler:
         except Exception as e:
             print(f"[Mongo] BATCH INSERT FAILED for {collection_name}: {type(e).__name__}: {e}")
 
-    def insert_record(self, collection_name, record):
-        if self.db is None:
-            return
-        try:
-            self.db[collection_name].insert_one(record)
-        except Exception as e:
-            print(f"[Mongo] Insert Error: {e}")
+        if valid_records:
+            try:
+                self.collection.insert_many(valid_records, ordered=False)
+                print(f"[Mongo Handler] ✓ Successfully inserted {len(valid_records)} records")
+            except pymongo.errors.BulkWriteError as bwe:
+                print(f"[Mongo Handler] Bulk Write Error: {bwe.details}")
+            except Exception as e:
+                print(f"[Mongo Handler] Insert Error: {e}")
 
     def reset_db(self):
         """Drop all collections to reset database for testing."""
