@@ -1,0 +1,4 @@
+docker-compose exec mysql mysql -u root -p
+docker-compose exec mongodb mongosh -u admin -p password
+
+MONGO_URI=mongodb://admin:password@localhost:27017/adaptive_db?authSource=admin

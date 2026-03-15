@@ -2,7 +2,9 @@
   "name": "Database Track - MySQL & MongoDB",
   "image": "mcr.microsoft.com/devcontainers/python:3.11",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": false
+    }
   },
   "postCreateCommand": "bash -c 'pip install -r requirements.txt && chmod +x start_services.sh stop_services.sh && ./start_services.sh'",
   "postStartCommand": "./start_services.sh",
