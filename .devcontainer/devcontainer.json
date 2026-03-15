@@ -1,0 +1,38 @@
+{
+  "name": "Database Track - MySQL & MongoDB",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "postCreateCommand": "bash -c 'pip install -r requirements.txt && chmod +x start_services.sh stop_services.sh && ./start_services.sh'",
+  "postStartCommand": "./start_services.sh",
+  "forwardPorts": [3306, 27017, 8000],
+  "portsAttributes": {
+    "3306": {
+      "label": "MySQL",
+      "onAutoForward": "notify"
+    },
+    "27017": {
+      "label": "MongoDB",
+      "onAutoForward": "notify"
+    },
+    "8000": {
+      "label": "API Server",
+      "onAutoForward": "notify"
+    }
+  },
+  "remoteUser": "vscode",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "mongodb.mongodb-vscode",
+        "cweijan.vscode-mysql-client2"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}
