@@ -1147,7 +1147,7 @@
     },
     "schema_history": [],
     "analyzer": {
-        "total_records_processed": 71950,
+        "total_records_processed": 76950,
         "field_stats": {
             "username": {
                 "count": 800,
@@ -1504,7 +1504,7 @@
                 "sample_values": []
             },
             "sys_ingested_at": {
-                "count": 71950,
+                "count": 76950,
                 "types": [
                     "datetime"
                 ],
@@ -1518,17 +1518,17 @@
                 ]
             },
             "username": {
-                "count": 71950,
+                "count": 76950,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 17558,
+                "base_unique_count": 18538,
                 "_unique_capped": false
             },
             "phone": {
-                "count": 18087,
+                "count": 19310,
                 "types": [
                     "str"
                 ],
@@ -1538,7 +1538,7 @@
                 "_unique_capped": true
             },
             "ip_address": {
-                "count": 51735,
+                "count": 55358,
                 "types": [
                     "str"
                 ],
@@ -1548,7 +1548,7 @@
                 "_unique_capped": true
             },
             "device_id": {
-                "count": 47894,
+                "count": 51241,
                 "types": [
                     "str"
                 ],
@@ -1558,23 +1558,22 @@
                 "_unique_capped": true
             },
             "device_model": {
-                "count": 61375,
+                "count": 65635,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [
-                    "iPhone 14",
-                    "Samsung S23",
-                    "OnePlus 12",
                     "Pixel 8",
-                    "Samsung S23"
+                    "OnePlus 12",
+                    "Samsung S23",
+                    "iPhone 14"
                 ],
                 "base_unique_count": 4,
                 "_unique_capped": false
             },
             "altitude": {
-                "count": 45803,
+                "count": 48962,
                 "types": [
                     "int"
                 ],
@@ -1584,7 +1583,7 @@
                 "_unique_capped": true
             },
             "speed": {
-                "count": 39202,
+                "count": 41952,
                 "types": [
                     "float"
                 ],
@@ -1594,22 +1593,22 @@
                 "_unique_capped": true
             },
             "direction": {
-                "count": 17891,
+                "count": 19141,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [
                     "N",
-                    "W",
                     "S",
-                    "E"
+                    "E",
+                    "W"
                 ],
                 "base_unique_count": 4,
                 "_unique_capped": false
             },
             "city": {
-                "count": 41500,
+                "count": 44402,
                 "types": [
                     "str"
                 ],
@@ -1623,17 +1622,17 @@
                 ]
             },
             "country": {
-                "count": 55965,
+                "count": 59875,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 4834,
+                "base_unique_count": 5077,
                 "_unique_capped": false
             },
             "timestamp": {
-                "count": 65132,
+                "count": 70132,
                 "types": [
                     "str"
                 ],
@@ -1643,7 +1642,7 @@
                 "_unique_capped": true
             },
             "session_id": {
-                "count": 49025,
+                "count": 52430,
                 "types": [
                     "str"
                 ],
@@ -1653,7 +1652,7 @@
                 "_unique_capped": true
             },
             "steps": {
-                "count": 25643,
+                "count": 27452,
                 "types": [
                     "int"
                 ],
@@ -1663,7 +1662,7 @@
                 "_unique_capped": true
             },
             "spo2": {
-                "count": 65760,
+                "count": 70308,
                 "types": [
                     "int"
                 ],
@@ -1685,42 +1684,42 @@
                 "_unique_capped": false
             },
             "temperature_c": {
-                "count": 43085,
+                "count": 46096,
                 "types": [
                     "float"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 9854,
+                "base_unique_count": 10404,
                 "_unique_capped": false
             },
             "humidity": {
-                "count": 56022,
+                "count": 59928,
                 "types": [
                     "int"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 1885,
+                "base_unique_count": 1976,
                 "_unique_capped": false
             },
             "air_quality": {
-                "count": 50760,
+                "count": 54301,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [
                     "moderate",
-                    "hazardous",
                     "bad",
-                    "good"
+                    "good",
+                    "hazardous"
                 ],
                 "base_unique_count": 4,
                 "_unique_capped": false
             },
             "purchase_value": {
-                "count": 66382,
+                "count": 70974,
                 "types": [
                     "float"
                 ],
@@ -1730,69 +1729,69 @@
                 "_unique_capped": true
             },
             "item": {
-                "count": 28011,
+                "count": 29949,
                 "types": [
-                    "str",
-                    "NoneType"
+                    "NoneType",
+                    "str"
                 ],
                 "is_nested": false,
                 "unique_values": [
                     "book",
+                    "phone",
                     "shoes",
                     "laptop",
-                    "bag",
                     null,
-                    "phone"
+                    "bag"
                 ],
                 "base_unique_count": 6,
                 "_unique_capped": false
             },
             "payment_status": {
-                "count": 39884,
+                "count": 42619,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [
+                    "pending",
                     "success",
-                    "failed",
-                    "pending"
+                    "failed"
                 ],
                 "base_unique_count": 3,
                 "_unique_capped": false
             },
             "language": {
-                "count": 44009,
+                "count": 47124,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 3629,
+                "base_unique_count": 3811,
                 "_unique_capped": false
             },
             "timezone": {
-                "count": 59552,
+                "count": 63729,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 5548,
+                "base_unique_count": 5842,
                 "_unique_capped": false
             },
             "ram_usage": {
-                "count": 48981,
+                "count": 52373,
                 "types": [
                     "int"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 2060,
+                "base_unique_count": 2160,
                 "_unique_capped": false
             },
             "error_code": {
-                "count": 22379,
+                "count": 23958,
                 "types": [
                     "NoneType",
                     "int"
@@ -1810,7 +1809,7 @@
                 "_unique_capped": false
             },
             "comment": {
-                "count": 21597,
+                "count": 23114,
                 "types": [
                     "str"
                 ],
@@ -1824,7 +1823,7 @@
                 ]
             },
             "avatar_url": {
-                "count": 44531,
+                "count": 47637,
                 "types": [
                     "str"
                 ],
@@ -1837,7 +1836,7 @@
                 ]
             },
             "last_seen": {
-                "count": 26867,
+                "count": 28741,
                 "types": [
                     "str"
                 ],
@@ -1847,7 +1846,7 @@
                 "_unique_capped": true
             },
             "name": {
-                "count": 44661,
+                "count": 47757,
                 "types": [
                     "str"
                 ],
@@ -1857,7 +1856,7 @@
                 "_unique_capped": true
             },
             "weather": {
-                "count": 58464,
+                "count": 62514,
                 "types": [
                     "str"
                 ],
@@ -1865,23 +1864,23 @@
                 "unique_values": [
                     "stormy",
                     "rainy",
-                    "snow",
+                    "sunny",
                     "cloudy",
-                    "sunny"
+                    "snow"
                 ],
                 "base_unique_count": 5,
                 "_unique_capped": false
             },
             "action": {
-                "count": 38328,
+                "count": 41012,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [
-                    "click",
-                    "logout",
                     "view",
+                    "logout",
+                    "click",
                     "purchase",
                     "login"
                 ],
@@ -1889,22 +1888,22 @@
                 "_unique_capped": false
             },
             "subscription": {
-                "count": 57603,
+                "count": 61615,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [
+                    "premium",
                     "basic",
-                    "trial",
                     "free",
-                    "premium"
+                    "trial"
                 ],
                 "base_unique_count": 4,
                 "_unique_capped": false
             },
             "friends_count": {
-                "count": 27464,
+                "count": 29337,
                 "types": [
                     "int"
                 ],
@@ -1918,38 +1917,38 @@
                 ]
             },
             "app_version": {
-                "count": 30478,
+                "count": 32563,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 8566,
+                "base_unique_count": 9057,
                 "_unique_capped": false
             },
             "cpu_usage": {
-                "count": 40617,
+                "count": 43425,
                 "types": [
                     "str",
                     "NoneType"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 2048,
+                "base_unique_count": 2148,
                 "_unique_capped": false
             },
             "disk_usage": {
-                "count": 6538,
+                "count": 6974,
                 "types": [
                     "int"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 1734,
+                "base_unique_count": 1834,
                 "_unique_capped": false
             },
             "email": {
-                "count": 21648,
+                "count": 23150,
                 "types": [
                     "str"
                 ],
@@ -2028,24 +2027,23 @@
                 ]
             },
             "os": {
-                "count": 9208,
+                "count": 9880,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
-                "sample_values": [
-                    "Windows",
-                    "Linux",
-                    "Android",
+                "unique_values": [
                     "MacOS",
+                    "Windows",
                     "iOS",
-                    "Windows"
+                    "Android",
+                    "Linux"
                 ],
                 "base_unique_count": 5,
                 "_unique_capped": false
             },
             "charging": {
-                "count": 17702,
+                "count": 18985,
                 "types": [
                     "bool"
                 ],
@@ -2058,17 +2056,17 @@
                 "_unique_capped": false
             },
             "sleep_hours": {
-                "count": 25423,
+                "count": 27171,
                 "types": [
                     "float"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 1255,
+                "base_unique_count": 1316,
                 "_unique_capped": false
             },
             "signal_strength": {
-                "count": 18526,
+                "count": 19788,
                 "types": [
                     "int"
                 ],
@@ -2084,7 +2082,7 @@
                 "_unique_capped": false
             },
             "is_active": {
-                "count": 18522,
+                "count": 19810,
                 "types": [
                     "bool"
                 ],
@@ -2097,7 +2095,7 @@
                 "_unique_capped": false
             },
             "metadata": {
-                "count": 40510,
+                "count": 43343,
                 "types": [
                     "dict"
                 ],
@@ -2107,7 +2105,7 @@
                 "_unique_capped": false
             },
             "network": {
-                "count": 36759,
+                "count": 39303,
                 "types": [
                     "str"
                 ],
@@ -2116,14 +2114,14 @@
                     "WiFi",
                     "5G",
                     "4G",
-                    "Offline",
-                    "Ethernet"
+                    "Ethernet",
+                    "Offline"
                 ],
                 "base_unique_count": 5,
                 "_unique_capped": false
             },
             "gps_lon": {
-                "count": 16426,
+                "count": 17612,
                 "types": [
                     "float"
                 ],
@@ -2133,7 +2131,7 @@
                 "_unique_capped": true
             },
             "is_background": {
-                "count": 10000,
+                "count": 10712,
                 "types": [
                     "bool"
                 ],
@@ -2146,33 +2144,33 @@
                 "_unique_capped": false
             },
             "postal_code": {
-                "count": 3861,
+                "count": 4128,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 3857,
+                "base_unique_count": 4122,
                 "_unique_capped": false
             },
             "mood": {
-                "count": 9901,
+                "count": 10579,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [
-                    "neutral",
                     "excited",
-                    "angry",
                     "happy",
-                    "sad"
+                    "angry",
+                    "sad",
+                    "neutral"
                 ],
                 "base_unique_count": 5,
                 "_unique_capped": false
             },
             "retry_count": {
-                "count": 9051,
+                "count": 9685,
                 "types": [
                     "int"
                 ],
@@ -2189,57 +2187,57 @@
                 "_unique_capped": false
             },
             "stress_level": {
-                "count": 9449,
+                "count": 10102,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [
-                    "high",
+                    "medium",
                     "low",
-                    "medium"
+                    "high"
                 ],
                 "base_unique_count": 3,
                 "_unique_capped": false
             },
             "gps_lat": {
-                "count": 5378,
+                "count": 5725,
                 "types": [
                     "float"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 5378,
+                "base_unique_count": 5725,
                 "_unique_capped": false
             },
             "heart_rate": {
-                "count": 13386,
+                "count": 14342,
                 "types": [
                     "int"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 2258,
+                "base_unique_count": 2378,
                 "_unique_capped": false
             },
             "age": {
-                "count": 5294,
+                "count": 5694,
                 "types": [
                     "int"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 989,
+                "base_unique_count": 1042,
                 "_unique_capped": false
             },
             "battery": {
-                "count": 5277,
+                "count": 5635,
                 "types": [
                     "int"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 1634,
+                "base_unique_count": 1730,
                 "_unique_capped": false
             }
         },

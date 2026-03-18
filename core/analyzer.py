@@ -54,18 +54,18 @@ class Analyzer:
         for record in batch:
             self._analyze_field_stats_for_table(record, table_name)
 
-    def _analyze_field_stats(self, record):
-        """Analyzes field statistics."""
-        for key, value in record.items():
-            if key not in self.field_stats:
-                self.field_stats[key] = {
-                    "count": 0, 
-                    "types": set(), 
-                    "is_nested": False,
-                    "unique_values_count": 0,
-                    "unique_values_set": set(),  # Temporary set for calculation only
-                    "sample_values": [],  # Max 5 sample values for documentation
-                }
+            for record in batch:
+                for key, value in record.items():
+                    if key not in self.field_stats:
+                        self.field_stats[key] = {
+                            "count": 0,
+                            "types": set(),  
+                            "is_nested": False,
+                            "unique_values": set(),
+                            "base_unique_count": 0,
+                            "_unique_capped": False,
+                            "db": None
+                        }
 
             self.field_stats[key]["count"] += 1
             self.field_stats[key]["types"].add(type(value).__name__)
@@ -249,6 +249,29 @@ class Analyzer:
                 },
                 "total_records_processed": self.total_records_processed
             }
+            
+            for key, stats in self.field_stats.items():
+                export_stats = copy.deepcopy(stats)
+                export_stats["types"] = list(export_stats["types"])
+                
+                total_unique = stats["base_unique_count"] + len(stats["unique_values"])
+                export_stats["base_unique_count"] = total_unique
+                
+                if len(stats["unique_values"]) > 20:
+                    export_stats["unique_values"] = []
+                    if len(stats["unique_values"]) >= 1000:
+                        stats["_unique_capped"] = True
+                        export_stats["_unique_capped"] = True
+                else:
+                    export_stats["unique_values"] = [
+                        v.isoformat() if isinstance(v, datetime) else v 
+                        for v in stats["unique_values"]
+                    ]
+                
+                export_stats["db"] = stats.get("db", None)
+                export_data["field_stats"][key] = export_stats
+                    
+            return export_data
 
     def load_stats(self, loaded_data):
         """
@@ -256,14 +279,30 @@ class Analyzer:
         Note: Temporary sets (unique_values_set) are NOT restored, they'll be rebuilt during ingestion.
         """
         with self.lock:
-            if loaded_data and "field_stats" in loaded_data:
-                for key, data in loaded_data["field_stats"].items():
-                    self.field_stats[key] = {
-                        "count": data.get("count", 0),
-                        "types": set(data.get("types", [])),
-                        "is_nested": data.get("is_nested", False),
-                        "unique_values_count": 0,
-                        "unique_values_set": set(),  # Will be rebuilt during ingestion
-                        "sample_values": data.get("sample_values", []),
-                    }
-            self.total_records_processed = loaded_data.get("total_records_processed", 0) if loaded_data else 0
+            self.field_stats = {}
+            for key, stats in data_stats.items():
+                self.field_stats[key] = stats
+                stats["types"] = set(stats["types"])
+                
+                is_capped = stats.get("_unique_capped", False)
+                restored_set = set(stats.get("unique_values", []))
+                stats["unique_values"] = restored_set
+                
+                total_from_json = stats.get("base_unique_count", 0)
+                
+                if is_capped:
+                    # If it was already capped, we trick the logic to keep it capped
+                    if len(restored_set) < 1000:
+                        stats["unique_values"] = set(range(1000))
+                    stats["base_unique_count"] = total_from_json - 1000
+                else:
+                    stats["base_unique_count"] = total_from_json - len(restored_set)
+
+    def update_db_assignment(self, schema_decisions):
+        """Update field_stats with db assignment from routing decisions."""
+        with self.lock:
+            for field, decision in schema_decisions.items():
+                if field in self.field_stats:
+                    # Get db from decision, fallback to target
+                    db_assignment = decision.get('db', decision.get('target', 'MONGO'))
+                    self.field_stats[field]["db"] = db_assignment
