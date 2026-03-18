@@ -7,3 +7,4 @@ sseclient-py
 mysql-connector-python 
 pymongo
 groq
+pytest
