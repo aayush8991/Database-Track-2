@@ -121,8 +121,7 @@ def process_worker(raw_queue, write_queue, analyzer, classifier):
             buffer = []
             last_dispatch = now
 
-def router_worker(write_queue, router, meta_manager, analyzer):
-    """Routes data to SQL/Mongo and Syncs Metadata."""
+def router_worker(write_queue, router, analyzer):
     print("[Router] Worker started.")
     
     last_save_time = time.time()
@@ -136,12 +135,15 @@ def router_worker(write_queue, router, meta_manager, analyzer):
             # --- EXECUTE ROUTING ---
             router.process_batch(batch, decisions)
             
-            # --- SYNC METADATA (Every 5 seconds) ---
-            if time.time() - last_save_time > 5:
-                meta_manager.sync_analyzer(analyzer)
-                meta_manager.sync_router(router)
-                meta_manager.save_metadata()
-                last_save_time = time.time()
+            # Update analyzer's field_stats with db assignments from router
+            analyzer.update_db_assignment(decisions)
+            
+            full_metadata = {
+                "analyzer": analyzer.export_stats(),
+                "classifier_decisions": payload.get('classifier_decisions', {}),
+                "router_decisions": router.export_decisions()
+            }
+            save_metadata(full_metadata)
             
             write_queue.task_done()
             
@@ -189,11 +191,7 @@ def main():
     # 4. Start Threads
     t_ingest = threading.Thread(target=ingest_worker, args=(raw_queue, DATA_STREAM_URL))
     t_process = threading.Thread(target=process_worker, args=(raw_queue, write_queue, analyzer, classifier))
-    t_router = threading.Thread(target=router_worker, args=(write_queue, router, meta_manager, analyzer))
-
-    t_ingest.daemon = True
-    t_process.daemon = True
-    t_router.daemon = True
+    t_router = threading.Thread(target=router_worker, args=(write_queue, router, analyzer))
 
     t_ingest.start()
     t_process.start()

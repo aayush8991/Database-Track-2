@@ -23,9 +23,53 @@ class Classifier:
         schema_decisions = {}
 
         for field, metrics in stats.items():
-            decision = self._classify_field(field, metrics, table_name)
-            schema_decisions[field] = decision
-            self.previous_decisions[field] = decision
+            
+            if field in self.common_fields:
+                schema_decisions[field] = {
+                    "target": "BOTH",
+                    "sql_type": self._map_python_type_to_sql(metrics["detected_type"], is_unique=False),
+                    "db": "BOTH"
+                }
+                continue
+
+            if metrics["is_nested"]:
+                schema_decisions[field] = {"target": "MONGO", "db": "MONGO"}
+                continue
+                
+            if metrics["detected_type"] == 'NoneType':
+                schema_decisions[field] = {"target": "MONGO", "db": "MONGO"}
+                continue
+
+            if metrics["type_stability"] == "unstable":
+                schema_decisions[field] = {"target": "MONGO", "db": "MONGO"}
+                continue
+
+            freq = metrics["frequency_ratio"]
+            previous_target = self.previous_decisions.get(field, {}).get("target", "MONGO")
+            target = "MONGO"
+            
+            if previous_target == "SQL" or previous_target == "BOTH":
+                if freq >= self.lower_threshold:
+                    target = "SQL"
+                else:
+                    target = "MONGO"
+            else:
+                if freq >= self.upper_threshold:
+                    target = "SQL"
+                else:
+                    target = "MONGO"
+
+            is_unique = self._is_identifier_field(field, metrics)
+            
+            if target == "SQL":
+                schema_decisions[field] = {
+                    "target": "SQL",
+                    "sql_type": self._map_python_type_to_sql(metrics["detected_type"], is_unique=is_unique),
+                    "is_unique": is_unique,
+                    "db": "SQL"
+                }
+            else:
+                schema_decisions[field] = {"target": "MONGO", "db": "MONGO"}
         
         return schema_decisions
     

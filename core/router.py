@@ -12,66 +12,17 @@ class Router:
         self.mongo_handler = mongo_handler
         self.analyzer = analyzer
         self.previous_decisions = {}
-        self.normalizer = Normalizer()
-        self.advanced_normalizer = AdvancedNormalizer()  # Add advanced normalizer
-        self.normalization_reports = []  # Track reports
-        self.lock = threading.Lock()
+        self.field_db_assignments = {}  # Track confirmed DB assignments for fields
 
     def process_batch(self, batch, schema_decisions):
         """Routes batch to appropriate storage based on complexity."""
         # 1. Check for Schema Migration
         self._check_and_migrate(schema_decisions)
+        self.previous_decisions.update(schema_decisions)
         
-        with self.lock:
-            self.previous_decisions.update(schema_decisions)
-
-        # 2. Detect if batch needs SQL Normalization
-        is_complex = False
-        if batch:
-            sample = batch[0]
-            for v in sample.values():
-                if isinstance(v, list) and v and isinstance(v[0], dict):
-                    is_complex = True
-                    break
-
-        if is_complex:
-            self._process_normalized_batch(batch)
-        else:
-            self._process_flat_batch(batch, schema_decisions)
-        
-        # 3. VALIDATE NORMALIZATION (Advanced Analysis)
-        self._validate_normalization(batch)
-
-    def _process_normalized_batch(self, batch):
-        """Splits complex nested JSON into SQL tables with M:N support."""
-        aggregated_tables = {}
-        
-        for record in batch:
-            # Use enhanced shredding with M:N junction table support
-            shredded = self.normalizer.shred_record_with_m2m(record)
-            
-            # Merge into batch aggregations
-            for table, rows in shredded.items():
-                if table not in aggregated_tables:
-                    aggregated_tables[table] = []
-                aggregated_tables[table].extend(rows)
-        
-        # Get schema with proper constraints and indexes
-        schema = self.normalizer.get_schema_for_normalized_data(aggregated_tables)
-        
-        # Create tables with indexes and constraints
-        self.sql_handler.create_tables_from_schema(schema)
-        
-        # Insert into SQL using the dynamic handler
-        self.sql_handler.insert_normalized_batch(aggregated_tables)
-         
-    def _process_flat_batch(self, batch, schema_decisions):
-        """
-        Handles flat records + Document Decomposition for MongoDB.
-        Strategy: If field > 10% of total doc size -> Move to separate collection.
-        """
-        # 1. EVOLVE SQL SCHEMA FIRST - ensure all SQL-target columns exist
-        self.sql_handler.update_schema(schema_decisions)
+        # Update field_db_assignments with current decisions
+        for field, decision in schema_decisions.items():
+            self.field_db_assignments[field] = decision.get('db', decision.get('target', 'MONGO'))
         
         sql_inserts = []
         mongo_payloads = {"unstructed_data": []}
@@ -188,72 +139,19 @@ class Router:
     def export_decisions(self):
         """Export previous decisions for persistence."""
         import copy
-        with self.lock:
-            return copy.deepcopy(self.previous_decisions)
+        decisions_with_db = {}
+        for field, decision in self.previous_decisions.items():
+            decisions_with_db[field] = copy.deepcopy(decision)
+            # Ensure db field is set
+            if 'db' not in decisions_with_db[field]:
+                decisions_with_db[field]['db'] = self.field_db_assignments.get(field, decision.get('target', 'MONGO'))
+        return decisions_with_db
 
     def load_decisions(self, decisions):
         """Restore previous decisions from persisted metadata."""
         import copy
         if decisions:
-            with self.lock:
-                self.previous_decisions = copy.deepcopy(decisions)
-    
-    def _validate_normalization(self, batch):
-        """
-        Validates batch against normalization theory using AdvancedNormalizer.
-        Runs advanced normalization analysis on batch.
-        """
-        if not batch:
-            return
-        
-        try:
-            # Run advanced normalization analysis
-            analysis = self.advanced_normalizer.analyze_data_structure(batch)
-            
-            # Get the normalization report
-            report = self.advanced_normalizer.get_normalization_report()
-            
-            # Store report for later access
-            with self.lock:
-                self.normalization_reports.append({
-                    'timestamp': datetime.now(),
-                    'batch_size': len(batch),
-                    'analysis': analysis,
-                    'report': report
-                })
-            
-            # Print key findings
-            #print("\n" + "=" * 70)
-            #print("[Router] ADVANCED NORMALIZATION ANALYSIS")
-            #print("=" * 70)
-            
-            # # Repeating groups
-            # if analysis.get('repeating_groups'):
-            #     print(f"✓ Found {len(analysis['repeating_groups'])} repeating groups:")
-            #     for rg in analysis['repeating_groups']:
-            #         print(f"  - {rg['group_name']}: {rg['attributes']}")
-            
-            # # Nesting levels
-            # if analysis.get('nesting_levels', {}).get('deepest_level', 0) > 0:
-            #     print(f"✓ Nesting depth: {analysis['nesting_levels']['deepest_level']} levels")
-            
-            # # Functional dependencies
-            # if analysis.get('functional_dependencies'):
-            #     print(f"✓ Found {len(analysis['functional_dependencies'])} functional dependencies:")
-            #     for fd in analysis['functional_dependencies'][:3]:  # Show first 3
-            #         print(f"  - {fd['determinant']} → {fd['dependents']}")
-            
-            # # M:N relationships
-            # if analysis.get('many_to_many'):
-            #     print(f"✓ Found {len(analysis['many_to_many'])} M:N relationships (need junction tables)")
-            
-            # # Primary key strategy
-            # pk_strategy = analysis.get('primary_key_strategy', {})
-            # print(f"✓ Primary Key Strategy: {pk_strategy.get('primary_key')} ({pk_strategy.get('strategy')})")
-            
-            # print("=" * 70 + "\n")
-            
-        except Exception as e:
-            print(f"[Router] Normalization validation error: {e}")
-            import traceback
-            traceback.print_exc()
+            self.previous_decisions = copy.deepcopy(decisions)
+            # Extract and cache field_db_assignments
+            for field, decision in decisions.items():
+                self.field_db_assignments[field] = decision.get('db', decision.get('target', 'MONGO'))
