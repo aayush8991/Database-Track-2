@@ -140,8 +140,8 @@ def router_worker(write_queue, router, analyzer):
             
             full_metadata = {
                 "analyzer": analyzer.export_stats(),
-                "classifier_decisions": payload.get('classifier_decisions', {}),
-                "router_decisions": router.export_decisions()
+                # "classifier_decisions": payload.get('classifier_decisions', {}),
+                # "router_decisions": router.export_decisions()
             }
             save_metadata(full_metadata)
             
