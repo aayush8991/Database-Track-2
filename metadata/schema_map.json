@@ -1147,7 +1147,7 @@
     },
     "schema_history": [],
     "analyzer": {
-        "total_records_processed": 76950,
+        "total_records_processed": 91950,
         "field_stats": {
             "username": {
                 "count": 800,
@@ -1504,165 +1504,171 @@
                 "sample_values": []
             },
             "sys_ingested_at": {
-                "count": 76950,
+                "count": 91950,
                 "types": [
                     "datetime"
                 ],
                 "is_nested": false,
-                "sample_values": [
-                    "2026-03-22 15:12:33.541427",
-                    "2026-03-22 15:12:33.552738",
-                    "2026-03-22 15:12:33.563656",
-                    "2026-03-22 15:12:33.574133",
-                    "2026-03-22 15:12:33.585286"
-                ]
+                "unique_values": [],
+                "base_unique_count": 1000,
+                "_unique_capped": true,
+                "db": "BOTH"
             },
             "username": {
-                "count": 76950,
+                "count": 91950,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 18538,
-                "_unique_capped": false
+                "base_unique_count": 21487,
+                "_unique_capped": false,
+                "db": "BOTH"
             },
             "phone": {
-                "count": 19310,
+                "count": 22979,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
                 "base_unique_count": 1000,
-                "_unique_capped": true
+                "_unique_capped": true,
+                "db": "MONGO"
             },
             "ip_address": {
-                "count": 55358,
+                "count": 66227,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
                 "base_unique_count": 1000,
-                "_unique_capped": true
+                "_unique_capped": true,
+                "db": "MONGO"
             },
             "device_id": {
-                "count": 51241,
+                "count": 61282,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
                 "base_unique_count": 1000,
-                "_unique_capped": true
+                "_unique_capped": true,
+                "db": "MONGO"
             },
             "device_model": {
-                "count": 65635,
+                "count": 78415,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [
-                    "Pixel 8",
-                    "OnePlus 12",
+                    "iPhone 14",
                     "Samsung S23",
-                    "iPhone 14"
+                    "Pixel 8",
+                    "OnePlus 12"
                 ],
                 "base_unique_count": 4,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "SQL"
             },
             "altitude": {
-                "count": 48962,
+                "count": 58439,
                 "types": [
                     "int"
                 ],
                 "is_nested": false,
                 "unique_values": [],
                 "base_unique_count": 1000,
-                "_unique_capped": true
+                "_unique_capped": true,
+                "db": "MONGO"
             },
             "speed": {
-                "count": 41952,
+                "count": 50202,
                 "types": [
                     "float"
                 ],
                 "is_nested": false,
                 "unique_values": [],
                 "base_unique_count": 1000,
-                "_unique_capped": true
+                "_unique_capped": true,
+                "db": "MONGO"
             },
             "direction": {
-                "count": 19141,
+                "count": 22891,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [
-                    "N",
-                    "S",
                     "E",
-                    "W"
+                    "W",
+                    "S",
+                    "N"
                 ],
                 "base_unique_count": 4,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "city": {
-                "count": 44402,
+                "count": 53108,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
-                "sample_values": [
-                    "New Ericmouth",
-                    "Wilsonshire",
-                    "East Travisburgh",
-                    "Lake Joseph",
-                    "Pattersonland"
-                ]
+                "unique_values": [],
+                "base_unique_count": 1000,
+                "_unique_capped": true,
+                "db": "MONGO"
             },
             "country": {
-                "count": 59875,
+                "count": 71605,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 5077,
-                "_unique_capped": false
+                "base_unique_count": 5806,
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "timestamp": {
-                "count": 70132,
+                "count": 85132,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
                 "base_unique_count": 1000,
-                "_unique_capped": true
+                "_unique_capped": true,
+                "db": "BOTH"
             },
             "session_id": {
-                "count": 52430,
+                "count": 62645,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
                 "base_unique_count": 1000,
-                "_unique_capped": true
+                "_unique_capped": true,
+                "db": "MONGO"
             },
             "steps": {
-                "count": 27452,
+                "count": 32879,
                 "types": [
                     "int"
                 ],
                 "is_nested": false,
                 "unique_values": [],
                 "base_unique_count": 1000,
-                "_unique_capped": true
+                "_unique_capped": true,
+                "db": "MONGO"
             },
             "spo2": {
-                "count": 70308,
+                "count": 83952,
                 "types": [
                     "int"
                 ],
@@ -1681,120 +1687,130 @@
                     95
                 ],
                 "base_unique_count": 11,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "SQL"
             },
             "temperature_c": {
-                "count": 46096,
+                "count": 55129,
                 "types": [
                     "float"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 10404,
-                "_unique_capped": false
+                "base_unique_count": 12054,
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "humidity": {
-                "count": 59928,
+                "count": 71646,
                 "types": [
                     "int"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 1976,
-                "_unique_capped": false
+                "base_unique_count": 2249,
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "air_quality": {
-                "count": 54301,
+                "count": 64924,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [
-                    "moderate",
                     "bad",
                     "good",
-                    "hazardous"
+                    "hazardous",
+                    "moderate"
                 ],
                 "base_unique_count": 4,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "purchase_value": {
-                "count": 70974,
+                "count": 84750,
                 "types": [
                     "float"
                 ],
                 "is_nested": false,
                 "unique_values": [],
                 "base_unique_count": 1000,
-                "_unique_capped": true
+                "_unique_capped": true,
+                "db": "SQL"
             },
             "item": {
-                "count": 29949,
+                "count": 35763,
                 "types": [
-                    "NoneType",
-                    "str"
+                    "str",
+                    "NoneType"
                 ],
                 "is_nested": false,
                 "unique_values": [
-                    "book",
-                    "phone",
+                    "bag",
                     "shoes",
                     "laptop",
+                    "phone",
                     null,
-                    "bag"
+                    "book"
                 ],
                 "base_unique_count": 6,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "payment_status": {
-                "count": 42619,
+                "count": 50824,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [
                     "pending",
-                    "success",
-                    "failed"
+                    "failed",
+                    "success"
                 ],
                 "base_unique_count": 3,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "language": {
-                "count": 47124,
+                "count": 56469,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 3811,
-                "_unique_capped": false
+                "base_unique_count": 4357,
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "timezone": {
-                "count": 63729,
+                "count": 76260,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 5842,
-                "_unique_capped": false
+                "base_unique_count": 6743,
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "ram_usage": {
-                "count": 52373,
+                "count": 62549,
                 "types": [
                     "int"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 2160,
-                "_unique_capped": false
+                "base_unique_count": 2460,
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "error_code": {
-                "count": 23958,
+                "count": 28695,
                 "types": [
-                    "NoneType",
-                    "int"
+                    "int",
+                    "NoneType"
                 ],
                 "is_nested": false,
                 "unique_values": [
@@ -1806,244 +1822,178 @@
                     500
                 ],
                 "base_unique_count": 6,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "comment": {
-                "count": 23114,
+                "count": 27665,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
-                "sample_values": [
-                    "d46944be-b138-4931-a4be-eec08e380d5e",
-                    "3fa52746-6838-4710-929d-226efe055e1c",
-                    "65682db7-7da6-4fa0-a5bf-959ef69e6b7d",
-                    "9425088d-5517-4c6a-8a8e-4798f3a78823",
-                    "4f16d45e-0e59-44f0-b6dd-a3c62a51bacc"
-                ]
+                "unique_values": [],
+                "base_unique_count": 1000,
+                "_unique_capped": true,
+                "db": "MONGO"
             },
             "avatar_url": {
-                "count": 47637,
+                "count": 56955,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
-                "sample_values": [
-                    "E",
-                    "W",
-                    "S",
-                    "N"
-                ]
+                "unique_values": [],
+                "base_unique_count": 1000,
+                "_unique_capped": true,
+                "db": "MONGO"
             },
             "last_seen": {
-                "count": 28741,
+                "count": 34363,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
                 "base_unique_count": 1000,
-                "_unique_capped": true
+                "_unique_capped": true,
+                "db": "MONGO"
             },
             "name": {
-                "count": 47757,
+                "count": 57045,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
                 "base_unique_count": 1000,
-                "_unique_capped": true
+                "_unique_capped": true,
+                "db": "MONGO"
             },
             "weather": {
-                "count": 62514,
+                "count": 74664,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [
                     "stormy",
+                    "snow",
                     "rainy",
                     "sunny",
-                    "cloudy",
-                    "snow"
+                    "cloudy"
                 ],
                 "base_unique_count": 5,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "action": {
-                "count": 41012,
+                "count": 49064,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [
+                    "purchase",
+                    "login",
                     "view",
                     "logout",
-                    "click",
-                    "purchase",
-                    "login"
+                    "click"
                 ],
                 "base_unique_count": 5,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "subscription": {
-                "count": 61615,
+                "count": 73651,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [
-                    "premium",
                     "basic",
+                    "premium",
                     "free",
                     "trial"
                 ],
                 "base_unique_count": 4,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "friends_count": {
-                "count": 29337,
+                "count": 34956,
                 "types": [
                     "int"
                 ],
                 "is_nested": false,
-                "sample_values": [
-                    "8004",
-                    "7956",
-                    "8728",
-                    "9935",
-                    "742"
-                ]
+                "unique_values": [],
+                "base_unique_count": 1000,
+                "_unique_capped": true,
+                "db": "MONGO"
             },
             "app_version": {
-                "count": 32563,
+                "count": 38818,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 9057,
-                "_unique_capped": false
+                "base_unique_count": 10530,
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "cpu_usage": {
-                "count": 43425,
+                "count": 51849,
                 "types": [
                     "str",
                     "NoneType"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 2148,
-                "_unique_capped": false
+                "base_unique_count": 2448,
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "disk_usage": {
-                "count": 6974,
+                "count": 8282,
                 "types": [
                     "int"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 1834,
-                "_unique_capped": false
+                "base_unique_count": 2134,
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "email": {
-                "count": 23150,
+                "count": 27656,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
-                "sample_values": [
-                    "5G",
-                    "Offline",
-                    "4G",
-                    "WiFi",
-                    "Ethernet"
-                ]
-            },
-            "postal_code": {
-                "count": 48,
-                "types": [
-                    "str"
-                ],
-                "is_nested": false,
-                "sample_values": [
-                    "29561",
-                    "22150",
-                    "55785",
-                    "73829",
-                    "68127"
-                ]
-            },
-            "app_version": {
-                "count": 332,
-                "types": [
-                    "str"
-                ],
-                "is_nested": false,
-                "sample_values": [
-                    "v4.6.9",
-                    "v4.8.0",
-                    "v4.4.7",
-                    "v3.4.9",
-                    "v2.9.5"
-                ]
-            },
-            "is_active": {
-                "count": 186,
-                "types": [
-                    "bool"
-                ],
-                "is_nested": false,
-                "sample_values": [
-                    "True",
-                    "False"
-                ]
-            },
-            "comment": {
-                "count": 242,
-                "types": [
-                    "str"
-                ],
-                "is_nested": false,
-                "sample_values": [
-                    "Continue break half price almost example.",
-                    "Nice night somebody people area carry development.",
-                    "Something watch about quite.",
-                    "Rate keep event end.",
-                    "Know rule dark wife apply check."
-                ]
-            },
-            "stress_level": {
-                "count": 118,
-                "types": [
-                    "str"
-                ],
-                "is_nested": false,
-                "sample_values": [
-                    "medium",
-                    "high",
-                    "low"
-                ]
+                "unique_values": [],
+                "base_unique_count": 1000,
+                "_unique_capped": true,
+                "db": "MONGO"
             },
             "os": {
-                "count": 9880,
+                "count": 11896,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [
-                    "MacOS",
+                    "Linux",
+                    "Android",
                     "Windows",
                     "iOS",
-                    "Android",
-                    "Linux"
+                    "MacOS"
                 ],
                 "base_unique_count": 5,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "charging": {
-                "count": 18985,
+                "count": 22834,
                 "types": [
                     "bool"
                 ],
@@ -2053,20 +2003,22 @@
                     true
                 ],
                 "base_unique_count": 2,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "sleep_hours": {
-                "count": 27171,
+                "count": 32415,
                 "types": [
                     "float"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 1316,
-                "_unique_capped": false
+                "base_unique_count": 1499,
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "signal_strength": {
-                "count": 19788,
+                "count": 23574,
                 "types": [
                     "int"
                 ],
@@ -2079,10 +2031,11 @@
                     5
                 ],
                 "base_unique_count": 5,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "is_active": {
-                "count": 19810,
+                "count": 23674,
                 "types": [
                     "bool"
                 ],
@@ -2092,20 +2045,22 @@
                     true
                 ],
                 "base_unique_count": 2,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "metadata": {
-                "count": 43343,
+                "count": 51842,
                 "types": [
                     "dict"
                 ],
                 "is_nested": true,
                 "unique_values": [],
                 "base_unique_count": 0,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "network": {
-                "count": 39303,
+                "count": 46935,
                 "types": [
                     "str"
                 ],
@@ -2118,20 +2073,22 @@
                     "Offline"
                 ],
                 "base_unique_count": 5,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "gps_lon": {
-                "count": 17612,
+                "count": 21170,
                 "types": [
                     "float"
                 ],
                 "is_nested": false,
                 "unique_values": [],
                 "base_unique_count": 1000,
-                "_unique_capped": true
+                "_unique_capped": true,
+                "db": "MONGO"
             },
             "is_background": {
-                "count": 10712,
+                "count": 12848,
                 "types": [
                     "bool"
                 ],
@@ -2141,36 +2098,39 @@
                     true
                 ],
                 "base_unique_count": 2,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "postal_code": {
-                "count": 4128,
+                "count": 4929,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 4122,
-                "_unique_capped": false
+                "base_unique_count": 4923,
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "mood": {
-                "count": 10579,
+                "count": 12613,
                 "types": [
                     "str"
                 ],
                 "is_nested": false,
                 "unique_values": [
+                    "sad",
                     "excited",
                     "happy",
                     "angry",
-                    "sad",
                     "neutral"
                 ],
                 "base_unique_count": 5,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "retry_count": {
-                "count": 9685,
+                "count": 11587,
                 "types": [
                     "int"
                 ],
@@ -2184,10 +2144,11 @@
                     5
                 ],
                 "base_unique_count": 6,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "stress_level": {
-                "count": 10102,
+                "count": 12061,
                 "types": [
                     "str"
                 ],
@@ -2198,49 +2159,53 @@
                     "high"
                 ],
                 "base_unique_count": 3,
-                "_unique_capped": false
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "gps_lat": {
-                "count": 5725,
+                "count": 6766,
                 "types": [
                     "float"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 5725,
-                "_unique_capped": false
+                "base_unique_count": 6766,
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "heart_rate": {
-                "count": 14342,
+                "count": 17210,
                 "types": [
                     "int"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 2378,
-                "_unique_capped": false
+                "base_unique_count": 2738,
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "age": {
-                "count": 5694,
+                "count": 6894,
                 "types": [
                     "int"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 1042,
-                "_unique_capped": false
+                "base_unique_count": 1201,
+                "_unique_capped": false,
+                "db": "MONGO"
             },
             "battery": {
-                "count": 5635,
+                "count": 6709,
                 "types": [
                     "int"
                 ],
                 "is_nested": false,
                 "unique_values": [],
-                "base_unique_count": 1730,
-                "_unique_capped": false
+                "base_unique_count": 2018,
+                "_unique_capped": false,
+                "db": "MONGO"
             }
-        },
-        "total_records_processed": 800
+        }
     }
 }
