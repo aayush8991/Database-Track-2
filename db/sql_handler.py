@@ -1,6 +1,8 @@
 import mysql.connector
 import os
 from dotenv import load_dotenv
+from sqlalchemy import text
+import pandas as pd
 
 load_dotenv()
 
@@ -93,6 +95,57 @@ class SQLHandler:
                 print(f"Insert Error: {err}")
         
         self.conn.commit()
+
+    def insert_normalized_batch(self, tables_data):
+        """
+        Takes { 'root': [rows], 'root_orders': [rows] } and inserts into SQL.
+        """
+        try:
+            with self.engine.connect() as conn:
+                for table_name, rows in tables_data.items():
+                    if not rows:
+                        continue
+
+                    import pandas as pd
+                    df = pd.DataFrame(rows)
+                    
+                    # 1. Dynamic Table Creation
+                    self._ensure_table_exists(conn, table_name, df)
+                    
+                    # 2. Insert
+                    df.to_sql(table_name, con=conn, if_exists='append', index=False)
+                    
+                conn.commit()
+        except Exception as e:
+            print(f"[SQLHandler] Error inserting normalized batch: {e}")
+
+    def _ensure_table_exists(self, conn, table_name, df):
+        """Create table if not exists based on dataframe dtypes."""
+        cols = []
+        for col_name, dtype in df.dtypes.items():
+            sql_type = "TEXT"
+            if "int" in str(dtype): 
+                sql_type = "INT"
+            elif "float" in str(dtype): 
+                sql_type = "FLOAT"
+            elif "datetime" in str(dtype): 
+                sql_type = "DATETIME"
+            
+            if col_name == "uuid":
+                sql_type = "VARCHAR(36) PRIMARY KEY"
+            elif col_name.endswith("_id") or col_name == "parent_id":
+                sql_type = "VARCHAR(36)"
+
+            cols.append(f"`{col_name}` {sql_type}")
+
+        cols_str = ", ".join(cols)
+        query = f"CREATE TABLE IF NOT EXISTS `{table_name}` ({cols_str})"
+        
+        try:
+            from sqlalchemy import text
+            conn.execute(text(query))
+        except Exception as e:
+            pass  # Table likely exists
 
     def close(self):
         if self.conn:
