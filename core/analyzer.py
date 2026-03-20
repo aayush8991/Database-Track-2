@@ -53,31 +53,31 @@ class Analyzer:
 
     def _analyze_structure(self, record, current_table):
         """Builds relational map based on JSON structure Heuristics."""
-        with self.lock:
-            if current_table not in self.structure_map:
-                self.structure_map[current_table] = {"columns": set(), "children": []}
+        # NOTE: Called from within lock context, don't try to acquire lock again
+        if current_table not in self.structure_map:
+            self.structure_map[current_table] = {"columns": set(), "children": []}
 
-            for key, value in record.items():
-                # HEURISTIC 1: List of Objects -> Child Table (1:N)
-                if isinstance(value, list) and len(value) > 0 and isinstance(value[0], dict):
-                    child_table = f"{current_table}_{key}"
-                    
-                    # Register relationship
-                    if child_table not in self.structure_map[current_table]["children"]:
-                        self.structure_map[current_table]["children"].append(child_table)
-                    
-                    # Recurse
-                    for item in value:
-                        self._analyze_structure(item, child_table)
+        for key, value in record.items():
+            # HEURISTIC 1: List of Objects -> Child Table (1:N)
+            if isinstance(value, list) and len(value) > 0 and isinstance(value[0], dict):
+                child_table = f"{current_table}_{key}"
+                
+                # Register relationship
+                if child_table not in self.structure_map[current_table]["children"]:
+                    self.structure_map[current_table]["children"].append(child_table)
+                
+                # Recurse
+                for item in value:
+                    self._analyze_structure(item, child_table)
 
-                # HEURISTIC 2: Nested Dict -> Flatten (1:1)
-                elif isinstance(value, dict):
-                    for sub_k, sub_v in value.items():
-                        self.structure_map[current_table]["columns"].add(f"{key}_{sub_k}")
+            # HEURISTIC 2: Nested Dict -> Flatten (1:1)
+            elif isinstance(value, dict):
+                for sub_k, sub_v in value.items():
+                    self.structure_map[current_table]["columns"].add(f"{key}_{sub_k}")
 
-                # HEURISTIC 3: Primitives -> Columns
-                elif not isinstance(value, list):
-                    self.structure_map[current_table]["columns"].add(key)
+            # HEURISTIC 3: Primitives -> Columns
+            elif not isinstance(value, list):
+                self.structure_map[current_table]["columns"].add(key)
 
     def get_structure_map(self):
         with self.lock:
@@ -115,8 +115,16 @@ class Analyzer:
     def export_stats(self):
         with self.lock:
             return {
-                "field_stats": {k: {**v, "unique_values": list(v["unique_values"])} 
-                               for k, v in self.field_stats.items()},
+                "field_stats": {
+                    k: {
+                        "count": v["count"],
+                        "types": list(v["types"]),  # Convert set to list
+                        "is_nested": v["is_nested"],
+                        "unique_values": list(v["unique_values"]),  # Convert set to list
+                        "unique_capped_at": v["unique_capped_at"]
+                    }
+                    for k, v in self.field_stats.items()
+                },
                 "total_records_processed": self.total_records_processed
             }
 

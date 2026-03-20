@@ -38,31 +38,21 @@ def main():
     print("2. Paste it below to fetch the FULL reconstructed object.")
     print("-" * 50)
 
+    print("\nEnter JSON CRUD queries below. Type 'exit' to quit.")
     while True:
-        mode = input("\nSelect Mode: (r)ead, (d)elete, (q)uit: ").lower().strip()
-        
-        if mode == 'q':
+        print("\nJSON CRUD query: ", end="")
+        line = input().strip()
+        if line.lower() == 'exit':
             break
-            
-        uuid_input = input("Enter Root UUID: ").strip()
-        if not uuid_input: continue
-
-        req = {}
-        if mode == 'r':
-            req = {"operation": "read", "root_id": uuid_input}
-        elif mode == 'd':
-            req = {"operation": "delete", "root_id": uuid_input}
-        else:
-            print("Unknown mode.")
+        try:
+            req = json.loads(line)
+        except Exception as e:
+            print(f"Invalid JSON: {e}")
             continue
-
         print(f"\nProcessing request: {json.dumps(req)} ...")
-        
-        # EXECUTE
         response = engine.handle_request(req)
-        
         print("\n>>> RESPONSE:")
-        print(json.dumps(response, indent=2, default=str)) # default=str handles datetime objects
+        print(json.dumps(response, indent=2, default=str))
 
 if __name__ == "__main__":
     main()

@@ -2,6 +2,7 @@ import time
 import json
 import uuid
 import threading
+from datetime import datetime
 from core.normalizer import Normalizer
 
 class Router:
@@ -58,12 +59,12 @@ class Router:
         Strategy: If field > 10% of total doc size -> Move to separate collection.
         """
         sql_inserts = []
-        mongo_payloads = {"raw_data": []}
+        mongo_payloads = {"unstructed_data": []}
 
         for record in batch:
             sql_rec = {}
             mongo_rec = {}
-            
+
             # Ensure UUID for consistent linking
             rec_uuid = record.get('uuid') or str(uuid.uuid4())
             record['uuid'] = rec_uuid
@@ -78,7 +79,7 @@ class Router:
             for key, value in record.items():
                 if key in common_keys:
                     continue
-                
+
                 decision = schema_decisions.get(key, {"target": "MONGO"})
                 target = decision['target']
 
@@ -95,24 +96,24 @@ class Router:
                 # 1. Serialize to check total size
                 doc_str = json.dumps(mongo_rec, default=str)
                 total_size = len(doc_str)
-                
+
                 # Only decompose if document is substantial (> 1KB)
                 if total_size > 1024:
                     keys_to_move = []
-                    
+
                     for k, v in list(mongo_rec.items()):
                         if k in common_keys:
-                            continue 
-                        
+                            continue
+
                         # Calculate Field Size
                         field_size = len(json.dumps(v, default=str))
-                        
+
                         # RULE: If field is > 10% of total size
                         if field_size > (total_size * 0.10):
                             target_coll = f"decomposed_{k}"
                             if target_coll not in mongo_payloads:
                                 mongo_payloads[target_coll] = []
-                                
+
                             # Create linked document
                             child_payload = {
                                 "parent_uuid": rec_uuid,
@@ -120,34 +121,36 @@ class Router:
                                 "created_at": datetime.now().isoformat()
                             }
                             mongo_payloads[target_coll].append(child_payload)
-                            
+
                             keys_to_move.append((k, target_coll))
-                    
+
                     # Replace migrated fields with References in Main Doc
                     for k, coll in keys_to_move:
                         mongo_rec[k] = f"REF::MONGO::{coll}::{rec_uuid}"
-                        
+
             except Exception as e:
                 print(f"[Router] Decomposition Calc Error: {e}")
 
-            if sql_rec: 
+            if sql_rec:
                 sql_inserts.append(sql_rec)
-            
-            mongo_payloads["raw_data"].append(mongo_rec)
+
+            mongo_payloads["unstructed_data"].append(mongo_rec)
 
         # Bulk SQL Insert
         if sql_inserts:
             self.sql_handler.insert_batch(sql_inserts)
-        
+
         # Bulk Mongo Insert (Multi-collection)
         for coll, docs in mongo_payloads.items():
             if not docs:
                 continue
-            
+
             try:
+                if self.mongo_handler is None or self.mongo_handler.db is None:
+                    continue
                 self.mongo_handler.insert_batch(coll, docs)
             except Exception as e:
-                print(f"[Router] Mongo Insert Error ({coll}): {e}")
+                print(f"[Router] Mongo Insert Error ({coll}): {type(e).__name__}: {e}")
 
     def _check_and_migrate(self, new_decisions):
         """Detects schema drift and migrates if needed."""

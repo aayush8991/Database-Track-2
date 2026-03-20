@@ -1,7 +1,7 @@
 import mysql.connector
 import os
 from dotenv import load_dotenv
-from sqlalchemy import text
+from sqlalchemy import text, create_engine
 import pandas as pd
 
 load_dotenv()
@@ -18,6 +18,28 @@ class SQLHandler:
         self.table_name = "structured_data"
         self.conn = None
         self.cursor = None
+        self.engine = None
+        self._init_engine()
+        self.connect()
+
+    def _init_engine(self):
+        """Initialize SQLAlchemy engine for pandas operations with connection pooling."""
+        try:
+            connection_string = f"mysql+mysqlconnector://{self.config['user']}:{self.config['password']}@{self.config['host']}:{self.config['port']}/{self.config['database']}"
+            
+            # Initialize with connection pooling configuration
+            self.engine = create_engine(
+                connection_string,
+                pool_size=10,              # Max connections to keep in pool
+                max_overflow=20,           # Max overflow beyond pool_size
+                pool_recycle=3600,         # Recycle connections after 1 hour
+                pool_pre_ping=True,        # Test connections before using them
+                echo=False                 # Set to True for SQL debugging
+            )
+            print("[SQLHandler] Engine initialized with connection pooling (size=10, overflow=20)")
+        except Exception as e:
+            print(f"[SQL] Engine initialization failed: {e}")
+            self.engine = None
 
     def connect(self):
         try:
@@ -100,6 +122,10 @@ class SQLHandler:
         """
         Takes { 'root': [rows], 'root_orders': [rows] } and inserts into SQL.
         """
+        if not self.engine:
+            print("[SQLHandler] Engine not available, skipping normalized batch insert")
+            return
+        
         try:
             with self.engine.connect() as conn:
                 for table_name, rows in tables_data.items():
@@ -112,16 +138,38 @@ class SQLHandler:
                     # 1. Dynamic Table Creation
                     self._ensure_table_exists(conn, table_name, df)
                     
-                    # 2. Insert
+                    # 2. Create strategic indexes for child tables
+                    if table_name != "root" and "_" in table_name:
+                        self._ensure_child_indexes(conn, table_name)
+                    
+                    # 3. Insert
                     df.to_sql(table_name, con=conn, if_exists='append', index=False)
                     
                 conn.commit()
         except Exception as e:
             print(f"[SQLHandler] Error inserting normalized batch: {e}")
+    
+    def _ensure_child_indexes(self, conn, table_name):
+        """Create indexes for foreign key columns in child tables."""
+        try:
+            # Index on foreign key for JOIN performance
+            fk_col = "root_id"
+            index_name = f"idx_{table_name}_{fk_col}"
+            
+            from sqlalchemy import text
+            query = f"""
+            CREATE INDEX IF NOT EXISTS `{index_name}` 
+            ON `{table_name}` (`{fk_col}`)
+            """
+            conn.execute(text(query))
+        except Exception as e:
+            pass  # Index may already exist
 
     def _ensure_table_exists(self, conn, table_name, df):
-        """Create table if not exists based on dataframe dtypes."""
+        """Create table if not exists based on dataframe dtypes with proper constraints."""
         cols = []
+        foreign_keys = []
+        
         for col_name, dtype in df.dtypes.items():
             sql_type = "TEXT"
             if "int" in str(dtype): 
@@ -133,11 +181,22 @@ class SQLHandler:
             
             if col_name == "uuid":
                 sql_type = "VARCHAR(36) PRIMARY KEY"
-            elif col_name.endswith("_id") or col_name == "parent_id":
+            elif col_name.endswith("_id"):
+                # Foreign key column - should not be null
+                sql_type = "VARCHAR(36) NOT NULL"
+                # Extract parent table name (e.g., "root_id" -> "root")
+                parent_table = col_name[:-3]
+                foreign_keys.append(
+                    f"FOREIGN KEY (`{col_name}`) REFERENCES `{parent_table}`(`uuid`) ON DELETE CASCADE"
+                )
+            elif col_name == "parent_id":
                 sql_type = "VARCHAR(36)"
 
             cols.append(f"`{col_name}` {sql_type}")
 
+        # Add foreign key constraints
+        cols.extend(foreign_keys)
+        
         cols_str = ", ".join(cols)
         query = f"CREATE TABLE IF NOT EXISTS `{table_name}` ({cols_str})"
         

@@ -8,3 +8,6 @@ mysql-connector-python
 pymongo
 groq
 pytest
+sqlalchemy
+python-dotenv
+pytest-cov

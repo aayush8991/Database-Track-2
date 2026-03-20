@@ -7,72 +7,96 @@ import queue
 import time
 from datetime import datetime
 
+# Core Components
 from core.normalizer import Normalizer
 from core.analyzer import Analyzer
 from core.classifier import Classifier
 from core.query_engine import QueryEngine
 from core.router import Router
+from core.metadata_manager import MetadataManager
+
+# DB Handlers
 from db.sql_handler import SQLHandler
 from db.mongo_handler import MongoHandler
+from dotenv import load_dotenv
 
+# Configuration
 BATCH_SIZE = 50
-METADATA_FILE = "metadata/schema_map.json"
 DATA_STREAM_URL = "http://127.0.0.1:8000/record/5000"
 MAX_QUEUE_SIZE = 1000
 STOP_EVENT = threading.Event()
 
-def load_metadata():
-    if os.path.exists(METADATA_FILE):
-        try:
-            with open(METADATA_FILE, 'r') as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            return {}
-    return {}
-
-def save_metadata(stats):
-    os.makedirs(os.path.dirname(METADATA_FILE), exist_ok=True)
-    with open(METADATA_FILE, 'w') as f:
-        json.dump(stats, f, indent=4)
+# --- WORKER FUNCTIONS ---
 
 def ingest_worker(raw_queue, data_url):
-    print(f"[Ingestor] Connecting to data stream at {data_url}...")
-    normalizer = Normalizer()
+    """Fetches data from stream and puts into Raw Queue."""
+    pre_processor = Normalizer()
+    record_count = 0
     
     try:
-        response = requests.get(data_url, stream=True)
+        try:
+            requests.get(data_url.replace('/record/5000', '/'), timeout=2)
+        except:
+            print("⚠️  Simulation Server unreachable. Retrying...")
+            time.sleep(2)
+
+        response = requests.get(data_url, stream=True, timeout=30)
         client = sseclient.SSEClient(response)
         
-        for event in client.events():
-            if STOP_EVENT.is_set():
-                break
-            
-            if event.data:
-                try:
-                    raw_record = json.loads(event.data)
-                    clean_record = normalizer.normalize_record(raw_record)
+        event_count = 0
+        try:
+            for event in client.events():
+                event_count += 1
+                if STOP_EVENT.is_set():
                     
+                    break
+                
+             
+                if event.data:
                     try:
-                        raw_queue.put(clean_record, timeout=1) 
-                    except queue.Full:
-                        while raw_queue.full() and not STOP_EVENT.is_set():
-                            time.sleep(0.1)
-                        if not STOP_EVENT.is_set():
-                            raw_queue.put(clean_record)
-
-                except json.JSONDecodeError:
-                    continue
-                    
+                        
+                        raw_record = json.loads(event.data)
+                        clean_record = pre_processor.normalize_record(raw_record)
+                        
+                        record_count += 1
+                        
+                        
+                        if record_count % 100 == 0:
+                            print(f"[Ingestor] Received {record_count} records")
+                        
+                        try:
+                            
+                            raw_queue.put(clean_record, timeout=1)
+                            
+                        except queue.Full:
+                            pass
+                            
+                    except json.JSONDecodeError as e:
+                        continue
+                    except Exception as e:
+                        import traceback
+                        traceback.print_exc()
+                        continue
+                else:
+                    print(f"[Ingestor] NO DATA in event {event_count}, skipping")
+                
+        except Exception as e:
+            print(f"[Ingestor] EXCEPTION in event loop: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+        print(f"[Ingestor] Event loop ended after {event_count} events, {record_count} records processed")
     except Exception as e:
-        print(f"[Ingestor] Error: {e}")
-    finally:
-        print("[Ingestor] Thread stopping.")
+        print(f"[Ingestor] Stream Error: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+    print("[Ingestor] Stopped.")
 
 def process_worker(raw_queue, write_queue, analyzer, classifier):
-    print("[Processor] Worker started.")
+    """Analyzes batches of data."""
     buffer = []
-    
-    while not STOP_EVENT.is_set() or not raw_queue.empty():
+    last_dispatch = time.time()
+    timeout = 2  # seconds
+    while not STOP_EVENT.is_set():
         try:
             record = raw_queue.get(timeout=1)
             buffer.append(record)
@@ -80,117 +104,104 @@ def process_worker(raw_queue, write_queue, analyzer, classifier):
         except queue.Empty:
             pass
 
-        if len(buffer) >= BATCH_SIZE or (STOP_EVENT.is_set() and buffer):
-            if not buffer:
-                continue
-            
+        # Only dispatch if buffer is full or timeout
+        now = time.time()
+        if len(buffer) >= BATCH_SIZE or (len(buffer) > 0 and (now - last_dispatch) > timeout):
             try:
                 analyzer.analyze_batch(buffer)
                 stats = analyzer.get_schema_stats()
                 schema_decisions = classifier.decide_schema(stats)
-
                 payload = {
                     "batch": buffer,
-                    "decisions": schema_decisions,
-                    "stats": analyzer.export_stats(),
-                    "classifier_decisions": classifier.export_decisions()
+                    "decisions": schema_decisions
                 }
                 write_queue.put(payload)
             except Exception as e:
                 print(f"[Processor] Error: {e}")
-            
             buffer = []
-    
-    print("[Processor] Thread stopping.")
+            last_dispatch = now
 
-def router_worker(write_queue, router):
+def router_worker(write_queue, router, meta_manager, analyzer):
+    """Routes data to SQL/Mongo and Syncs Metadata."""
     print("[Router] Worker started.")
     
-    while not STOP_EVENT.is_set() or not write_queue.empty():
+    last_save_time = time.time()
+    
+    while not STOP_EVENT.is_set():
         try:
             payload = write_queue.get(timeout=1)
             batch = payload['batch']
             decisions = payload['decisions']
             
-            router.sql_handler.update_schema(decisions)
+            # --- EXECUTE ROUTING ---
             router.process_batch(batch, decisions)
             
-            full_metadata = {
-                "analyzer": payload['stats'],
-                "classifier_decisions": payload.get('classifier_decisions', {}),
-                "router_decisions": router.export_decisions()
-            }
-            save_metadata(full_metadata)
+            # --- SYNC METADATA (Every 5 seconds) ---
+            if time.time() - last_save_time > 5:
+                meta_manager.sync_analyzer(analyzer)
+                meta_manager.sync_router(router)
+                meta_manager.save_metadata()
+                last_save_time = time.time()
             
             write_queue.task_done()
             
         except queue.Empty:
-            pass
+            continue
         except Exception as e:
             print(f"[Router] Error: {e}")
 
-    print("[Router] Thread stopping.")
+    # Final Save
+    meta_manager.sync_analyzer(analyzer)
+    meta_manager.sync_router(router)
+    meta_manager.save_metadata()
+    print("[Router] Stopped.")
+
+# --- MAIN EXECUTION ---
 
 def main():
+    load_dotenv()
+    
     print("="*60)
-    print("  ADAPTIVE INGESTION ENGINE")
+    print("  ADAPTIVE INGESTION ENGINE v2.0 (Metadata Driven)")
     print("="*60)
     
-    print("\n[1/4] Checking data stream availability...")
-    try:
-        response = requests.get(DATA_STREAM_URL.replace('/record/5000', '/'), timeout=2)
-        print("      ✓ Data stream server is running")
-    except requests.exceptions.RequestException:
-        print("\n⚠️  WARNING: Simulation server not detected!")
-        print("    Start it first: uvicorn simulation_code:app --reload --port 8000\n")
-        return
+    # 1. Initialize Metadata Manager
+    meta_manager = MetadataManager()
+    print(f"[Init] Metadata Manager loaded.")
 
-    print("\n[2/4] Initializing components...")
+    # 2. Initialize Queues
     raw_queue = queue.Queue(maxsize=MAX_QUEUE_SIZE)
     write_queue = queue.Queue(maxsize=MAX_QUEUE_SIZE)
     
+    # 3. Initialize Core Components
     analyzer = Analyzer()
+    # Restore analyzer state from previous runs
+    meta_manager.restore_analyzer_state(analyzer)
     classifier = Classifier(lower_threshold=0.75, upper_threshold=0.85)
     
-    sql_handler = SQLHandler() 
+    sql_handler = SQLHandler()
     mongo_handler = MongoHandler()
-    router = Router(sql_handler, mongo_handler)
     
-    print("\n[3/4] Connecting to databases...")
-    try:
-        sql_handler.connect()
-        print("      ✓ MySQL connected")
-    except Exception as e:
-        print(f"      ✗ MySQL connection failed: {e}")
-        return
+    router = Router(sql_handler, mongo_handler, analyzer)
+    
+    print("[Init] Components initialized.")
 
-
-    saved_metadata = load_metadata()
-    if saved_metadata:
-        if 'analyzer' in saved_metadata:
-            analyzer.load_stats(saved_metadata['analyzer'])
-            classifier.load_decisions(saved_metadata.get('classifier_decisions', {}))
-            router.load_decisions(saved_metadata.get('router_decisions', {}))
-            field_count = len(saved_metadata['analyzer'].get('field_stats', {}))
-        else:
-            analyzer.load_stats(saved_metadata)
-            field_count = len(saved_metadata.get('field_stats', {}))
-        
-        print(f"      ✓ Loaded metadata ({field_count} fields tracked)")
-    else:
-        print("      ℹ Starting fresh (no previous metadata)")
-
-    print("\n[4/4] Starting worker threads...")
+    # 4. Start Threads
     t_ingest = threading.Thread(target=ingest_worker, args=(raw_queue, DATA_STREAM_URL))
     t_process = threading.Thread(target=process_worker, args=(raw_queue, write_queue, analyzer, classifier))
-    t_router = threading.Thread(target=router_worker, args=(write_queue, router))
+    t_router = threading.Thread(target=router_worker, args=(write_queue, router, meta_manager, analyzer))
+
+    t_ingest.daemon = True
+    t_process.daemon = True
+    t_router.daemon = True
 
     t_ingest.start()
     t_process.start()
     t_router.start()
 
+    # Initialize Query Engine for CLI
     query_engine = QueryEngine(analyzer, raw_queue)
-
+    
     print("\n" + "="*60)
     print("  SYSTEM READY")
     print("="*60)
@@ -204,27 +215,31 @@ def main():
     
     try:
         while True:
-            user_input = input(">> ")
-            if user_input.strip().lower() == "exit":
-                print("Initiating shutdown...")
-                STOP_EVENT.set()
+            try:
+                command = input(">> ")
+                if command.lower() == "exit":
+                    print("\nInitiating shutdown...")
+                    break
+                response = query_engine.process_command(command)
+                if response:
+                    print(response)
+            except EOFError:
                 break
-            
-            response = query_engine.process_command(user_input)
-            print(response)
-            
+            except Exception as e:
+                print(f"Error processing command: {e}")
     except KeyboardInterrupt:
-        print("\n\n⚠️  Interrupt received.")
-        STOP_EVENT.set()
-    finally:
-        print("Stopping worker threads...")
-        t_ingest.join()
-        t_process.join()
-        t_router.join()
+        print("\n⚠️  Interrupt received.\nStopping worker threads...")
         
-        sql_handler.close()
-        mongo_handler.close()
-        print("✓ Shutdown complete.\n")
+    print("[Ingestor] Thread stopping.")
+    print("[Router] Thread stopping.")
+    print("\n[System] Shutting down...")
+    STOP_EVENT.set()
+    
+    t_ingest.join(timeout=2)
+    t_process.join(timeout=2)
+    t_router.join(timeout=2)
+    
+    print("[System] Done.")
 
 if __name__ == "__main__":
     main()

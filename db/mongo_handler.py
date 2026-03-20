@@ -12,14 +12,38 @@ class MongoHandler:
         self.db_name = os.getenv("MONGO_DB_NAME", "adaptive_db")
         
         try:
-            self.client = MongoClient(self.uri, serverSelectionTimeoutMS=2000)
+            # Initialize with connection pooling
+            self.client = MongoClient(
+                self.uri, 
+                serverSelectionTimeoutMS=2000,
+                minPoolSize=5,           # Minimum pool size
+                maxPoolSize=50,          # Maximum pool size
+                maxIdleTimeMS=45000      # Close idle connections after 45s
+            )
             self.db = self.client[self.db_name]
             # Test connection
             self.client.server_info()
-            print(f"[Mongo] Connected to {self.db_name}")
+            print(f"[Mongo] Connected to {self.db_name} with connection pooling (min=5, max=50)")
+            
+            # Create strategic indexes
+            self._ensure_indexes()
         except Exception as e:
             print(f"[Mongo] Connection Failed: {e}")
             self.db = None
+    
+    def _ensure_indexes(self):
+        """Create strategic indexes for common queries."""
+        if self.db is None:
+            return
+        
+        try:
+            # unstructured_data collection
+            self.db["unstructured_data"].create_index("uuid", unique=True)
+            self.db["unstructured_data"].create_index("username")
+            self.db["unstructured_data"].create_index("timestamp")
+            print("[Mongo] Indexes created successfully")
+        except Exception as e:
+            pass  # Indexes may already exist
 
     def insert_batch(self, collection_name_or_records, records=None):
         """
@@ -27,30 +51,30 @@ class MongoHandler:
         - insert_batch(records) - backward compatible
         - insert_batch(collection_name, records) - new style
         """
-        if not self.db:
+        if self.db is None:
             return
 
         # Determine which signature is being used
         if records is None:
             # Old signature: insert_batch(records)
-            collection_name = "raw_data"
+            collection_name = "unstructed_data"
             records = collection_name_or_records
         else:
             # New signature: insert_batch(collection_name, records)
             collection_name = collection_name_or_records
-        
+
         if not records:
             return
 
         try:
             coll = self.db[collection_name]
-            coll.insert_many(records)
-            print(f"[Mongo] Inserted {len(records)} into {collection_name}")
+            result = coll.insert_many(records)
         except Exception as e:
-            print(f"[Mongo] Batch Insert Error on {collection_name}: {e}")
+            print(f"[Mongo] BATCH INSERT FAILED for {collection_name}: {type(e).__name__}: {e}")
 
     def insert_record(self, collection_name, record):
-        if not self.db: return
+        if self.db is None:
+            return
         try:
             self.db[collection_name].insert_one(record)
         except Exception as e:
