@@ -9,55 +9,95 @@ class Classifier:
         self.previous_decisions = {}
         self.ai_decision_cache = {}
 
-    def decide_schema(self, stats):
+    def decide_schema(self, stats, table_name=None):
+        """
+        Classify fields based on their characteristics.
+        
+        Args:
+            stats: Field statistics dictionary
+            table_name: Table name for context-aware decisions
+        
+        Returns:
+            Dictionary of field classification decisions
+        """
         schema_decisions = {}
 
         for field, metrics in stats.items():
-            
-            if field in self.common_fields:
-                schema_decisions[field] = {
-                    "target": "BOTH",
-                    "sql_type": self._map_python_type_to_sql(metrics["detected_type"], is_unique=False)
-                }
-                continue
-
-            if metrics["is_nested"]:
-                schema_decisions[field] = {"target": "MONGO"}
-                continue
-                
-            if metrics["detected_type"] == 'NoneType':
-                schema_decisions[field] = {"target": "MONGO"}
-                continue
-
-            if metrics["type_stability"] == "unstable":
-                schema_decisions[field] = {"target": "MONGO"}
-                continue
-
-            freq = metrics["frequency_ratio"]
-            previous_target = self.previous_decisions.get(field, {}).get("target", "MONGO")
-            target = "MONGO"
-            
-            if previous_target == "SQL" or previous_target == "BOTH":
-                if freq >= self.lower_threshold:
-                    target = "SQL"
-                else:
-                    target = "MONGO"
-            else:
-                if freq >= self.upper_threshold:
-                    target = "SQL"
-                else:
-                    target = "MONGO"
-
+            decision = self._classify_field(field, metrics, table_name)
+            schema_decisions[field] = decision
+            self.previous_decisions[field] = decision
+        
+        return schema_decisions
+    
+    def _classify_field(self, field, metrics, table_name=None):
+        """Classify a single field."""
+        
+        # Rule 1: Common fields go to BOTH
+        if field in self.common_fields:
+            return {
+                "target": "BOTH",
+                "sql_type": self._map_python_type_to_sql(metrics["detected_type"], is_unique=False)
+            }
+        
+        # Rule 2: Foreign keys (ending with _id) go to SQL
+        if field.endswith("_id"):
+            return {
+                "target": "SQL",
+                "sql_type": "TEXT",
+                "is_unique": False,
+                "is_foreign_key": True
+            }
+        
+        # Rule 3: UUID field goes to SQL
+        if field == "uuid":
+            return {
+                "target": "SQL",
+                "sql_type": "TEXT",
+                "is_unique": True,
+                "is_primary_key": True
+            }
+        
+        # Rule 4: Nested/Complex types go to MONGO
+        if metrics["is_nested"]:
+            return {"target": "MONGO"}
+        
+        # Rule 5: NoneType fields go to MONGO
+        if metrics["detected_type"] == 'NoneType':
+            return {"target": "MONGO"}
+        
+        # Rule 6: Unstable types go to MONGO
+        if metrics["type_stability"] == "unstable":
+            return {"target": "MONGO"}
+        
+        # Rule 7: Numeric and boolean types -> SQL
+        if metrics["detected_type"] in ['int', 'float', 'bool']:
+            return {
+                "target": "SQL",
+                "sql_type": self._map_python_type_to_sql(metrics["detected_type"], is_unique=False),
+                "is_unique": False
+            }
+        
+        # Rule 8: High-frequency stable fields go to SQL
+        freq = metrics["frequency_ratio"]
+        if freq >= self.upper_threshold:  # >= 0.85
             is_unique = self._is_identifier_field(field, metrics)
-            
-            if target == "SQL":
-                schema_decisions[field] = {
-                    "target": "SQL",
-                    "sql_type": self._map_python_type_to_sql(metrics["detected_type"], is_unique=is_unique),
-                    "is_unique": is_unique
-                }
-            else:
-                schema_decisions[field] = {"target": "MONGO"}
+            return {
+                "target": "SQL",
+                "sql_type": self._map_python_type_to_sql(metrics["detected_type"], is_unique=is_unique),
+                "is_unique": is_unique
+            }
+        
+        # Rule 9: Medium-frequency stable string fields go to SQL
+        if freq >= self.lower_threshold and metrics["type_stability"] == "stable":
+            is_unique = self._is_identifier_field(field, metrics)
+            return {
+                "target": "SQL",
+                "sql_type": self._map_python_type_to_sql(metrics["detected_type"], is_unique=is_unique),
+                "is_unique": is_unique
+            }
+        
+        # Rule 10: Everything else goes to MONGO
+        return {"target": "MONGO"}
         
         self.previous_decisions.update(schema_decisions)
         return schema_decisions

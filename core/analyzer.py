@@ -12,20 +12,47 @@ class Analyzer:
         }
         self.total_records_processed = 0
         self.lock = threading.Lock()
+        
+        # NEW: Per-table statistics tracking
+        self.table_stats = {}  # { "root": {...}, "root_orders": {...} }
+        self.table_row_counts = {}  # Track row count per table
 
-    def analyze_batch(self, batch):
+    def analyze_batch(self, batch, table_name=None):
+        """
+        Analyze a batch of records.
+        
+        Args:
+            batch: List of records to analyze
+            table_name: If provided, analyze per-table. Otherwise, use global analysis.
+        """
         if not batch:
             return
 
         with self.lock:
-            self.total_records_processed += len(batch)
-
-            for record in batch:
-                # 1. Existing Stat Analysis
-                self._analyze_field_stats(record)
-                
-                # 2. Structure Analysis (Heuristic based)
-                self._analyze_structure(record, "root")
+            if table_name:
+                # Per-table analysis
+                self._analyze_batch_per_table(batch, table_name)
+            else:
+                # Global analysis (backward compatible)
+                self.total_records_processed += len(batch)
+                for record in batch:
+                    self._analyze_field_stats(record)
+                    self._analyze_structure(record, "root")
+    
+    def _analyze_batch_per_table(self, batch, table_name):
+        """Analyze a batch for a specific table."""
+        # Initialize table stats if needed
+        if table_name not in self.table_stats:
+            self.table_stats[table_name] = {}
+        
+        # Track row count
+        if table_name not in self.table_row_counts:
+            self.table_row_counts[table_name] = 0
+        self.table_row_counts[table_name] += len(batch)
+        
+        # Analyze each record
+        for record in batch:
+            self._analyze_field_stats_for_table(record, table_name)
 
     def _analyze_field_stats(self, record):
         """Analyzes field statistics."""
@@ -48,6 +75,36 @@ class Analyzer:
                 if len(self.field_stats[key]["unique_values"]) < 1000:
                     try:
                         self.field_stats[key]["unique_values"].add(str(value))
+                    except TypeError:
+                        pass
+
+    def _analyze_field_stats_for_table(self, record, table_name):
+        """Analyze field statistics for a specific table."""
+        table_schema = self.table_stats[table_name]
+        
+        for key, value in record.items():
+            # Skip uuid and system fields
+            if key == "uuid":
+                continue
+            
+            if key not in table_schema:
+                table_schema[key] = {
+                    "count": 0,
+                    "types": set(),
+                    "is_nested": False,
+                    "unique_values": set(),
+                    "unique_capped_at": 0,
+                }
+            
+            table_schema[key]["count"] += 1
+            table_schema[key]["types"].add(type(value).__name__)
+            
+            if isinstance(value, (dict, list)):
+                table_schema[key]["is_nested"] = True
+            else:
+                if len(table_schema[key]["unique_values"]) < 1000:
+                    try:
+                        table_schema[key]["unique_values"].add(str(value))
                     except TypeError:
                         pass
 
@@ -87,8 +144,21 @@ class Analyzer:
                 data["columns"] = list(data["columns"])
             return export
 
-    def get_schema_stats(self):
+    def get_schema_stats(self, table_name=None):
+        """
+        Get schema statistics.
+        
+        Args:
+            table_name: If provided, return stats for specific table. Otherwise return global stats.
+        
+        Returns:
+            Dictionary of field statistics
+        """
         with self.lock:
+            if table_name:
+                return self._process_table_stats(table_name)
+            
+            # Old behavior - global stats (backward compatible)
             summary = {}
             for key, stats in self.field_stats.items():
                 freq_ratio = 0.0
@@ -111,6 +181,38 @@ class Analyzer:
                     "count": stats["count"]
                 }
             return summary
+    
+    def _process_table_stats(self, table_name):
+        """Process statistics for a specific table."""
+        if table_name not in self.table_stats:
+            return {}
+        
+        table_schema = self.table_stats[table_name]
+        row_count = self.table_row_counts.get(table_name, 1)
+        
+        summary = {}
+        for key, stats in table_schema.items():
+            freq_ratio = 0.0
+            if row_count > 0:
+                freq_ratio = stats["count"] / row_count
+            
+            unique_types = list(stats["types"])
+            is_stable = (len(unique_types) == 1)
+            detected_type = unique_types[0] if is_stable else "mixed"
+            
+            total_unique = len(stats["unique_values"])
+            unique_ratio = (total_unique / stats["count"]) if stats["count"] > 0 else 0.0
+            
+            summary[key] = {
+                "frequency_ratio": freq_ratio,
+                "type_stability": "stable" if is_stable else "unstable",
+                "detected_type": detected_type,
+                "is_nested": stats["is_nested"],
+                "unique_ratio": unique_ratio,
+                "count": stats["count"]
+            }
+        
+        return summary
 
     def export_stats(self):
         with self.lock:

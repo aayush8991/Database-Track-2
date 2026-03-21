@@ -67,7 +67,8 @@ class Normalizer:
             elif isinstance(value, dict):
                 for sub_k, sub_v in value.items():
                     flat_key = f"{clean_key}_{self._to_snake_case(sub_k)}"
-                    row[flat_key] = str(sub_v)
+                    # PRESERVE ORIGINAL TYPE - don't convert to string
+                    row[flat_key] = sub_v
 
             # RULE 3: Primitives -> Columns
             else:
