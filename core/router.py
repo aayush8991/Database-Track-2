@@ -4,6 +4,7 @@ import uuid
 import threading
 from datetime import datetime
 from core.normalizer import Normalizer
+from core.normalization_advanced import AdvancedNormalizer
 
 class Router:
     def __init__(self, sql_handler, mongo_handler, analyzer=None):
@@ -12,6 +13,8 @@ class Router:
         self.analyzer = analyzer
         self.previous_decisions = {}
         self.normalizer = Normalizer()
+        self.advanced_normalizer = AdvancedNormalizer()  # Add advanced normalizer
+        self.normalization_reports = []  # Track reports
         self.lock = threading.Lock()
 
     def process_batch(self, batch, schema_decisions):
@@ -35,6 +38,9 @@ class Router:
             self._process_normalized_batch(batch)
         else:
             self._process_flat_batch(batch, schema_decisions)
+        
+        # 3. VALIDATE NORMALIZATION (Advanced Analysis)
+        self._validate_normalization(batch)
 
     def _process_normalized_batch(self, batch):
         """Splits complex nested JSON into SQL tables."""
@@ -182,3 +188,63 @@ class Router:
         if decisions:
             with self.lock:
                 self.previous_decisions = copy.deepcopy(decisions)
+    
+    def _validate_normalization(self, batch):
+        """
+        Validates batch against normalization theory using AdvancedNormalizer.
+        Runs advanced normalization analysis on batch.
+        """
+        if not batch:
+            return
+        
+        try:
+            # Run advanced normalization analysis
+            analysis = self.advanced_normalizer.analyze_data_structure(batch)
+            
+            # Get the normalization report
+            report = self.advanced_normalizer.get_normalization_report()
+            
+            # Store report for later access
+            with self.lock:
+                self.normalization_reports.append({
+                    'timestamp': datetime.now(),
+                    'batch_size': len(batch),
+                    'analysis': analysis,
+                    'report': report
+                })
+            
+            # Print key findings
+            print("\n" + "=" * 70)
+            print("[Router] ADVANCED NORMALIZATION ANALYSIS")
+            print("=" * 70)
+            
+            # Repeating groups
+            if analysis.get('repeating_groups'):
+                print(f"✓ Found {len(analysis['repeating_groups'])} repeating groups:")
+                for rg in analysis['repeating_groups']:
+                    print(f"  - {rg['group_name']}: {rg['attributes']}")
+            
+            # Nesting levels
+            if analysis.get('nesting_levels', {}).get('deepest_level', 0) > 0:
+                print(f"✓ Nesting depth: {analysis['nesting_levels']['deepest_level']} levels")
+            
+            # Functional dependencies
+            if analysis.get('functional_dependencies'):
+                print(f"✓ Found {len(analysis['functional_dependencies'])} functional dependencies:")
+                for fd in analysis['functional_dependencies'][:3]:  # Show first 3
+                    print(f"  - {fd['determinant']} → {fd['dependents']}")
+            
+            # M:N relationships
+            if analysis.get('many_to_many'):
+                print(f"✓ Found {len(analysis['many_to_many'])} M:N relationships (need junction tables)")
+            
+            # Primary key strategy
+            pk_strategy = analysis.get('primary_key_strategy', {})
+            print(f"✓ Primary Key Strategy: {pk_strategy.get('primary_key')} ({pk_strategy.get('strategy')})")
+            
+            print("=" * 70 + "\n")
+            
+        except Exception as e:
+            print(f"[Router] Normalization validation error: {e}")
+            import traceback
+            traceback.print_exc()
