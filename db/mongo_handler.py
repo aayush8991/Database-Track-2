@@ -79,3 +79,36 @@ class MongoHandler:
             self.db[collection_name].insert_one(record)
         except Exception as e:
             print(f"[Mongo] Insert Error: {e}")
+
+    def reset_db(self):
+        """Drop all collections to reset database for testing."""
+        if self.db is None:
+            return
+        
+        try:
+            # Get all collections
+            collections = self.db.list_collection_names()
+            
+            # Drop each collection
+            for collection in collections:
+                self.db[collection].drop()
+                print(f"[Mongo] Dropped collection: {collection}")
+            
+            print("[Mongo] Database reset complete")
+        except Exception as e:
+            print(f"[Mongo] Reset failed: {e}")
+
+    def find(self, query, collection='unstructured_data', limit=None):
+        """Find documents in a collection."""
+        if self.db is None:
+            return []
+        
+        try:
+            coll = self.db[collection]
+            if limit:
+                return list(coll.find(query).limit(limit))
+            else:
+                return list(coll.find(query))
+        except Exception as e:
+            print(f"[Mongo] Find Error: {e}")
+            return []

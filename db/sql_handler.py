@@ -206,6 +206,31 @@ class SQLHandler:
         except Exception as e:
             pass  # Table likely exists
 
+    def reset_db(self):
+        """Drop all tables to reset database for testing."""
+        try:
+            cursor = self.cursor
+            
+            # Disable foreign key checks temporarily
+            cursor.execute("SET FOREIGN_KEY_CHECKS=0")
+            
+            # Get all tables
+            cursor.execute("SHOW TABLES")
+            tables = [table[0] for table in cursor.fetchall()]
+            
+            # Drop each table
+            for table in tables:
+                cursor.execute(f"DROP TABLE IF EXISTS `{table}`")
+                print(f"[SQL] Dropped table: {table}")
+            
+            # Re-enable foreign key checks
+            cursor.execute("SET FOREIGN_KEY_CHECKS=1")
+            self.conn.commit()
+            
+            print("[SQL] Database reset complete")
+        except Exception as e:
+            print(f"[SQL] Reset failed: {e}")
+
     def close(self):
         if self.conn:
             self.conn.close()
