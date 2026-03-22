@@ -16,11 +16,16 @@ class Normalizer:
         return s2.lower()
 
     def normalize_record(self, record):
-        """Cleans keys of a flat record."""
+        """Cleans keys of a flat record and adds sys_ingested_at timestamp."""
         cleaned = {}
         for key, value in record.items():
             clean_key = self._to_snake_case(key)
             cleaned[clean_key] = value
+        
+        # Add system ingestion timestamp if not already present
+        if 'sys_ingested_at' not in cleaned:
+            cleaned['sys_ingested_at'] = datetime.now()
+        
         return cleaned
 
     def shred_record(self, record):

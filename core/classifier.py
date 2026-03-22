@@ -39,8 +39,15 @@ class Classifier:
                 "sql_type": self._map_python_type_to_sql(metrics["detected_type"], is_unique=False)
             }
         
-        # Rule 2: Foreign keys (ending with _id) go to SQL
-        if field.endswith("_id"):
+        # Rule 2: Foreign keys (but be specific - not all _id fields are FK)
+        # Only treat as FK if it contains a specific parent entity name
+        # e.g., customer_id, product_id in a child table
+        # But not: session_id, device_id, user_id which can be standalone identifiers
+        foreign_key_patterns = ['customer_id', 'product_id', 'order_id']
+        field_lower = field.lower()
+        is_foreign_key = any(pattern in field_lower for pattern in foreign_key_patterns)
+        
+        if is_foreign_key and field.endswith("_id"):
             return {
                 "target": "SQL",
                 "sql_type": "TEXT",
@@ -97,17 +104,20 @@ class Classifier:
             }
         
         # Rule 9.5: Identifier fields go to SQL even if low frequency
-        # Heuristic: If field name suggests identifier or is mostly unique, it's likely an identifier
+        # BUT only mark as UNIQUE if the data actually proves it's unique
         identifier_keywords = {'phone', 'email', 'id', 'uuid', 'account', 'license', 'passport', 'ssn', 'arn', 'sku', 'device_id', 'session_id'}
         field_lower = field.lower()
-        is_identifier = any(keyword in field_lower for keyword in identifier_keywords)
+        is_identifier_name = any(keyword in field_lower for keyword in identifier_keywords)
         unique_ratio = metrics.get("unique_ratio", 0)
         
-        if is_identifier or unique_ratio >= 0.9:
+        # Only mark as UNIQUE if field name suggests it AND data proves it (>= 95% unique)
+        should_be_unique = is_identifier_name and unique_ratio >= 0.95
+        
+        if is_identifier_name:
             return {
                 "target": "SQL",
                 "sql_type": "TEXT",
-                "is_unique": True,
+                "is_unique": should_be_unique,
                 "reason": "identifier_field"
             }
         
@@ -221,13 +231,15 @@ Answer ONLY with: YES or NO"""
                 return False
             
             unique_ratio = metrics.get("unique_ratio", 0)
-            if unique_ratio < 0.98:
+            # Match the Rule 9.5 threshold: only mark as UNIQUE if >= 95% unique
+            if unique_ratio < 0.95:
                 self.ai_decision_cache[field] = False
                 return False
             
-            # Pattern matching for identifier fields
+            # Pattern matching for identifier fields - should match Rule 9.5 keywords
             field_lower = field.lower()
-            identifier_patterns = ['_id', 'uuid', 'email', 'username', 'user_name']
+            # Use same identifier keywords as Rule 9.5 for consistency
+            identifier_patterns = ['_id', 'uuid', 'email', 'username', 'user_name', 'phone', 'account', 'license', 'passport', 'ssn', 'arn', 'sku']
             fallback_decision = any(pattern in field_lower for pattern in identifier_patterns)
             
             # Cache fallback decision

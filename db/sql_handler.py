@@ -78,6 +78,10 @@ class SQLHandler:
                 sql_type = decision.get('sql_type', 'TEXT')
                 is_unique = decision.get('is_unique', False)
                 
+                # MySQL requires VARCHAR with length for UNIQUE constraints on TEXT types
+                if is_unique and sql_type == 'TEXT':
+                    sql_type = 'VARCHAR(255)'
+                
                 constraint = " UNIQUE" if is_unique else ""
                 print(f"[SQL Handler] Evolving Schema: Adding column '{field}' as {sql_type}{constraint}")
                 

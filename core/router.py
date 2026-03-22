@@ -70,6 +70,9 @@ class Router:
         Handles flat records + Document Decomposition for MongoDB.
         Strategy: If field > 10% of total doc size -> Move to separate collection.
         """
+        # 1. EVOLVE SQL SCHEMA FIRST - ensure all SQL-target columns exist
+        self.sql_handler.update_schema(schema_decisions)
+        
         sql_inserts = []
         mongo_payloads = {"unstructed_data": []}
 
