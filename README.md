@@ -39,24 +39,6 @@ See [architecture.txt](architecture.txt) for a diagram and [system_concepts.md](
     pip install -r requirements.txt
     ```
 
-3.  **Configure Environment**:
-    Create a `.env` file in the root directory:
-    ```env
-    # MongoDB
-    MONGO_URI=mongodb://localhost:27017/
-    MONGO_DB_NAME=adaptive_db
-
-    # MySQL
-    SQL_HOST=localhost
-    SQL_PORT=3306
-    SQL_USER=root
-    SQL_PASSWORD=password
-    SQL_DB_NAME=adaptive_db
-
-    # Data Source (Simulation)
-    STREAM_URL=http://127.0.0.1:8000/record
-    ```
-
 ##  Quick Start
 
 **Prerequisites:** MySQL and MongoDB must be running locally.
