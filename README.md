@@ -244,162 +244,116 @@ The **Metadata Manager** maintains the system's schema state, field routing info
 
 ##  CRUD Operations
 
-The **CRUD Engine** provides a unified interface for Create, Read, Update, and Delete operations across both SQL and MongoDB backends.
+### Setup: Running the CLI CRUD Client
 
-### Overview
-The CRUD Engine abstracts away backend complexity, automatically routing operations to the appropriate database based on metadata configuration.
-
-### Create Operations
-
-#### Insert Single Record
-```python
-record = {
-    "name": "Alice",
-    "email": "alice@example.com",
-    "age": 30,
-    "tags": ["python", "database"]
-}
-
-crud_engine.create(record)
-# Automatically splits and routes:
-# - Structured fields (name, email, age) → MySQL
-# - Unstructured/array fields (tags) → MongoDB
+To execute CRUD operations, run the CLI client in a **new terminal**:
+```bash
+python3 cli_crud_client.py
 ```
 
-#### Batch Insert
-```python
-records = [
-    {"name": "Alice", "email": "alice@example.com"},
-    {"name": "Bob", "email": "bob@example.com"},
-    {"name": "Charlie", "email": "charlie@example.com"}
-]
+This starts an interactive CLI where you can submit JSON queries. You should see a prompt:
+```
+Connected to CRUD Engine
+>> 
+```
 
-crud_engine.batch_create(records)
-# Returns: Number of successfully inserted records
+### Query Format
+
+All CRUD operations use JSON format. Type a JSON query at the prompt and press Enter.
+
+### Create Operation (INSERT)
+
+Insert a single record:
+```json
+{"operation": "insert", "data": {"username": "demo_user", "email": "demo@example.com", "profile_bio": "User profile information"}}
+```
+
+**CLI Example:**
+```
+>> {"operation": "insert", "data": {"username": "demo_user", "email": "demo@example.com"}}
+Status: success
+UUID: 550e8400-e29b-41d4-a716-446655440000
 ```
 
 ### Read Operations
 
-#### Fetch Single Record by ID
-```python
-record = crud_engine.read(record_uuid)
-# Example response:
-# {
-#   "uuid": "550e8400-e29b-41d4-a716-446655440000",
-#   "name": "Alice",
-#   "email": "alice@example.com",
-#   "age": 30,
-#   "tags": ["python", "database"]
-# }
+#### Fetch record by UUID
+```json
+{"operation": "read", "root_id": "550e8400-e29b-41d4-a716-446655440000"}
 ```
 
-#### Query Records with Filtering
-```python
-records = crud_engine.read_where("name", "Alice")
-# Returns all records matching the condition
-
-records = crud_engine.read_range("age", 25, 35)
-# Returns records where age is between 25 and 35
+**CLI Example:**
+```
+>> {"operation": "read", "root_id": "550e8400-e29b-41d4-a716-446655440000"}
+Status: success
+Record: {"uuid": "550e8400-e29b-41d4-a716-446655440000", "username": "demo_user", "email": "demo@example.com"}
 ```
 
-#### Full Table Scan
-```python
-all_records = crud_engine.read_all()
-# Returns complete dataset from both backends (joins automatically)
+#### Query by filter (match condition)
+```json
+{"operation": "read", "filter": {"username": "demo_user"}}
 ```
 
-### Update Operations
-
-#### Update Record
-```python
-updates = {
-    "email": "alice.new@example.com",
-    "age": 31
-}
-
-crud_engine.update(record_uuid, updates)
-# Intelligently routes:
-# - SQL-backed fields → MySQL UPDATE
-# - MongoDB-backed fields → MongoDB document update
+#### List all values for a field
+```json
+{"operation": "list", "field": "username"}
 ```
 
-#### Bulk Update
-```python
-filter_condition = {"status": "active"}
-updates = {"status": "inactive"}
-
-crud_engine.bulk_update(filter_condition, updates)
-# Updates multiple records matching condition
+**CLI Example:**
+```
+>> {"operation": "list", "field": "username"}
+Status: success
+Values: ["demo_user", "alice", "bob", "charlie"]
+Count: 4
 ```
 
-### Delete Operations
+### Update Operation
 
-#### Delete Single Record
-```python
-crud_engine.delete(record_uuid)
-# Removes record from:
-# 1. Root table in MySQL
-# 2. Corresponding documents in MongoDB
-# 3. All related references and junctions
+Update records matching a filter:
+```json
+{"operation": "update", "filter": {"username": "demo_user"}, "data": {"email": "updated_demo@example.com"}}
 ```
 
-#### Delete with Filter
-```python
-crud_engine.delete_where("status", "archived")
-# Deletes all records matching the condition
+**CLI Example:**
+```
+>> {"operation": "update", "filter": {"username": "demo_user"}, "data": {"email": "updated_demo@example.com"}}
+Status: success
+Updated: 1 record(s)
 ```
 
-### Advanced Features
+### Delete Operation
 
-#### Schema Validation
-```python
-errors = crud_engine.validate_record(record)
-# Returns list of validation errors (if any):
-# - Type mismatches
-# - Uniqueness constraint violations
-# - Missing required fields
+Delete by UUID:
+```json
+{"operation": "delete", "root_id": "550e8400-e29b-41d4-a716-446655440000"}
 ```
 
-#### Reference Resolution
-```python
-# Automatically resolve cross-backend references
-full_record = crud_engine.get_with_references(record_uuid)
-# Combines SQL data + MongoDB nested fields + resolved relationships
+Delete by filter:
+```json
+{"operation": "delete", "filter": {"status": "archived"}}
 ```
 
-#### Performance Tracking
-```python
-# All CRUD operations are tracked for performance monitoring
-stats = crud_engine.get_operation_stats()
-# Returns execution times, success rates, and resource usage
+**CLI Example:**
+```
+>> {"operation": "delete", "root_id": "550e8400-e29b-41d4-a716-446655440000"}
+Status: success
+Deleted: 1 record(s)
 ```
 
-### Routing Rules for CRUD Operations
+### Automated Demo
 
-| Field Type | SQL | MongoDB | Treatment |
-|------------|-----|---------|-----------|
-| Scalar (int, str, bool) | ✓ | | Standard columns |
-| Sparse Data | | ✓ | Infrequent fields |
-| Nested Objects | | ✓ | Complex structures |
-| Arrays | | ✓ | Multi-value fields |
-| High Cardinality | ✓ | | UNIQUE constraint |
-| Type Unstable | | ✓ | Type changes detected |
-
-### Error Handling
-
-The CRUD Engine provides comprehensive error handling:
-```python
-try:
-    crud_engine.create(record)
-except ValidationError as e:
-    print(f"Invalid record: {e}")
-except UniqueConstraintError as e:
-    print(f"Duplicate value: {e}")
-except ConnectionError as e:
-    print(f"Database connection failed: {e}")
+To see a complete end-to-end CRUD workflow without manual input:
+```bash
+python3 test_crud_demo.py
 ```
 
----
+This demonstrates:
+1. INSERT → Create new record
+2. READ (by UUID) → Retrieve the record
+3. READ (by filter) → Query by condition
+4. UPDATE → Modify existing record
+5. LIST → Show all values for a field
+6. DELETE → Remove the record
 
 ##  Testing
 
@@ -414,9 +368,4 @@ pytest tests/test_crud_engine.py -v        # Test CRUD operations
 pytest tests/test_normalizer.py -v         # Test data normalization
 pytest tests/test_metadata_manager.py -v   # Test metadata management
 pytest tests/test_integration.py -v        # Test end-to-end flows
-```
-
-With coverage report:
-```bash
-pytest tests/ --cov=core --cov-report=html
 ```
