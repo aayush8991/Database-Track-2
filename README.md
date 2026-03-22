@@ -2,6 +2,7 @@
 
 > **Course Project:** CS 432 Databases (Assignment 1)  
 > **Topic:** Adaptive Ingestion & Hybrid Backend Placement
+> **Assingment-2 Video Link:** https://youtu.be/1UnupiQ_ETQ
 
 ##  Overview
 This project implements an **autonomous data ingestion engine** that dynamically routes incoming JSON records to the optimal storage backend (**MySQL** or **MongoDB**) based on data characteristics.
