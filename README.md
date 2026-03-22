@@ -3,12 +3,12 @@
 > **Course Project:** CS 432 Databases (Assignment 1)  
 > **Topic:** Adaptive Ingestion & Hybrid Backend Placement
 
-## 📖 Overview
+##  Overview
 This project implements an **autonomous data ingestion engine** that dynamically routes incoming JSON records to the optimal storage backend (**MySQL** or **MongoDB**) based on data characteristics.
 
 It features a **3-Stage Producer-Consumer Pipeline** capable of handling high-throughput data streams, detecting schema drift in real-time, and **automatically migrating data** between SQL and NoSQL stores when stability criteria change.
 
-## ✨ Key Features
+##  Key Features
 *   **Hybrid Storage**: Automatically splits a single record into Structured (SQL) and Semi-Structured (MongoDB) components.
 *   **Adaptive Classification**: Uses heuristics (Frequency, Type Stability, Nesting, Uniqueness) to decide storage target.
 *   **Schema Evolution**: Automatically `ALTERs` SQL tables to add new columns.
@@ -16,7 +16,7 @@ It features a **3-Stage Producer-Consumer Pipeline** capable of handling high-th
 *   **Concurrency**: Multi-threaded architecture (Ingestor, Processor, Router) ensures ingestion never blocks processing.
 *   **Zero Data Potential Loss**: Uses thread-safe Queues and Backpressure.
 
-## 🏗 Architecture
+##  Architecture
 The system follows a threaded pipeline architecture:
 `Ingestion Thread` $\rightarrow$ `Raw Queue` $\rightarrow$ `Processing Thread` $\rightarrow$ `Write Queue` $\rightarrow$ `Router Thread`
 
@@ -57,7 +57,7 @@ See [architecture.txt](architecture.txt) for a diagram and [system_concepts.md](
     STREAM_URL=http://127.0.0.1:8000/record
     ```
 
-## 🚀 Quick Start
+##  Quick Start
 
 **Prerequisites:** MySQL and MongoDB must be running locally.
 
@@ -132,7 +132,7 @@ Initiating shutdown...
 - `[SQL Handler] Evolving Schema: Adding column 'field_name'`
 - `[Router] MIGRATION: Field drifted from SQL to MongoDB`
 
-## 🧠 Logic & Heuristics
+##  Logic & Heuristics
 *   **Nested Data** $\rightarrow$ MongoDB (Always)
 *   **Unstable Types** (e.g., Int then String) $\rightarrow$ MongoDB (Always)
 *   **Sparse Data** (Frequency < 80%) $\rightarrow$ MongoDB
@@ -140,7 +140,7 @@ Initiating shutdown...
 *   **Standard** $\rightarrow$ SQL
 
 
-## 🔄 Normalization
+##  Normalization
 
 The **Normalizer** component ensures consistent data formatting and handles complex data transformations before ingestion.
 
@@ -190,7 +190,7 @@ shredded = normalizer.shred_record_with_m2m(record)
 
 ---
 
-## 📊 Metadata Manager
+##  Metadata Manager
 
 The **Metadata Manager** maintains the system's schema state, field routing information, and historical tracking of schema evolution.
 
@@ -242,7 +242,7 @@ The **Metadata Manager** maintains the system's schema state, field routing info
 
 ---
 
-## 🛠 CRUD Operations
+##  CRUD Operations
 
 The **CRUD Engine** provides a unified interface for Create, Read, Update, and Delete operations across both SQL and MongoDB backends.
 
@@ -401,7 +401,7 @@ except ConnectionError as e:
 
 ---
 
-## 🧪 Testing
+##  Testing
 
 Run the complete test suite:
 ```bash
