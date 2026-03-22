@@ -179,11 +179,19 @@ class CRUDEngine:
                 if field == "uuid":
                     sql_data["uuid"] = value
                     continue
-                routing = self.field_routing.get(field, "sql")
-                if routing in ["sql", "both"]:
+                
+                routing = self.field_routing.get(field, {})
+                # Handle both dict and string routing formats
+                if isinstance(routing, dict):
+                    target = routing.get("target", "sql").lower()
+                else:
+                    target = str(routing).lower()
+                
+                if target in ["sql", "both"]:
                     sql_data[field] = value
-                if routing in ["mongo", "both"]:
+                if target in ["mongo", "both"]:
                     mongo_data[field] = value
+            
             # Insert into SQL if data present
             if sql_data:
                 cols = ', '.join(f'`{k}`' for k in sql_data.keys())
@@ -191,9 +199,11 @@ class CRUDEngine:
                 with self.sql.engine.connect() as conn:
                     conn.execute(text(f"INSERT INTO `root` ({cols}) VALUES ({vals})"), sql_data)
                     conn.commit()
+            
             # Insert into MongoDB if data present
             if mongo_data:
                 self.mongo.db["unstructured_data"].insert_one(mongo_data)
+            
             return {"status": "success", "message": "Inserted record.", "uuid": record_uuid}
         except Exception as e:
             return {"status": "error", "message": f"Insert failed: {str(e)}"}
@@ -214,11 +224,14 @@ class CRUDEngine:
             sql_updates = {}
             mongo_updates = {}
             for k, v in update_data.items():
-                routing = self.field_routing.get(k, "sql")
-                if routing in ["sql", "both"]:
+                routing = self.field_routing.get(k, {})
+                # Handle both dict and string routing formats
+                target = routing.get("target", "sql") if isinstance(routing, dict) else routing
+                if target.lower() in ["sql", "both"]:
                     sql_updates[k] = v
-                if routing in ["mongo", "both"]:
+                if target.lower() in ["mongo", "both"]:
                     mongo_updates[k] = v
+            
             # Update SQL records
             updated_count = 0
             if sql_updates:
@@ -229,9 +242,11 @@ class CRUDEngine:
                     res = conn.execute(text(f"UPDATE `root` SET {set_clause} WHERE `{field}` = :v"), params)
                     conn.commit()
                     updated_count = res.rowcount
-            # Update MongoDB documents
+            
+            # Update MongoDB documents (fix typo: unstructed -> unstructured)
             if mongo_updates:
-                self.mongo.db["unstructed_data"].update_many({field: value}, {"$set": mongo_updates})
+                self.mongo.db["unstructured_data"].update_many({field: value}, {"$set": mongo_updates})
+            
             return {"status": "success", "message": f"Updated {updated_count} record(s) in SQL, MongoDB updated."}
         except Exception as e:
             return {"status": "error", "message": f"Update failed: {str(e)}"}
