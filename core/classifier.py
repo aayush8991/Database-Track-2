@@ -96,11 +96,23 @@ class Classifier:
                 "is_unique": is_unique
             }
         
+        # Rule 9.5: Identifier fields go to SQL even if low frequency
+        # Heuristic: If field name suggests identifier or is mostly unique, it's likely an identifier
+        identifier_keywords = {'phone', 'email', 'id', 'uuid', 'account', 'license', 'passport', 'ssn', 'arn', 'sku', 'device_id', 'session_id'}
+        field_lower = field.lower()
+        is_identifier = any(keyword in field_lower for keyword in identifier_keywords)
+        unique_ratio = metrics.get("unique_ratio", 0)
+        
+        if is_identifier or unique_ratio >= 0.9:
+            return {
+                "target": "SQL",
+                "sql_type": "TEXT",
+                "is_unique": True,
+                "reason": "identifier_field"
+            }
+        
         # Rule 10: Everything else goes to MONGO
         return {"target": "MONGO"}
-        
-        self.previous_decisions.update(schema_decisions)
-        return schema_decisions
 
     def _is_identifier_field(self, field, metrics):
         """Identifies true unique identifier fields vs high-cardinality measurement fields.

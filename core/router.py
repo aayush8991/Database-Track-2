@@ -220,35 +220,35 @@ class Router:
                 })
             
             # Print key findings
-            print("\n" + "=" * 70)
-            print("[Router] ADVANCED NORMALIZATION ANALYSIS")
-            print("=" * 70)
+            #print("\n" + "=" * 70)
+            #print("[Router] ADVANCED NORMALIZATION ANALYSIS")
+            #print("=" * 70)
             
-            # Repeating groups
-            if analysis.get('repeating_groups'):
-                print(f"✓ Found {len(analysis['repeating_groups'])} repeating groups:")
-                for rg in analysis['repeating_groups']:
-                    print(f"  - {rg['group_name']}: {rg['attributes']}")
+            # # Repeating groups
+            # if analysis.get('repeating_groups'):
+            #     print(f"✓ Found {len(analysis['repeating_groups'])} repeating groups:")
+            #     for rg in analysis['repeating_groups']:
+            #         print(f"  - {rg['group_name']}: {rg['attributes']}")
             
-            # Nesting levels
-            if analysis.get('nesting_levels', {}).get('deepest_level', 0) > 0:
-                print(f"✓ Nesting depth: {analysis['nesting_levels']['deepest_level']} levels")
+            # # Nesting levels
+            # if analysis.get('nesting_levels', {}).get('deepest_level', 0) > 0:
+            #     print(f"✓ Nesting depth: {analysis['nesting_levels']['deepest_level']} levels")
             
-            # Functional dependencies
-            if analysis.get('functional_dependencies'):
-                print(f"✓ Found {len(analysis['functional_dependencies'])} functional dependencies:")
-                for fd in analysis['functional_dependencies'][:3]:  # Show first 3
-                    print(f"  - {fd['determinant']} → {fd['dependents']}")
+            # # Functional dependencies
+            # if analysis.get('functional_dependencies'):
+            #     print(f"✓ Found {len(analysis['functional_dependencies'])} functional dependencies:")
+            #     for fd in analysis['functional_dependencies'][:3]:  # Show first 3
+            #         print(f"  - {fd['determinant']} → {fd['dependents']}")
             
-            # M:N relationships
-            if analysis.get('many_to_many'):
-                print(f"✓ Found {len(analysis['many_to_many'])} M:N relationships (need junction tables)")
+            # # M:N relationships
+            # if analysis.get('many_to_many'):
+            #     print(f"✓ Found {len(analysis['many_to_many'])} M:N relationships (need junction tables)")
             
-            # Primary key strategy
-            pk_strategy = analysis.get('primary_key_strategy', {})
-            print(f"✓ Primary Key Strategy: {pk_strategy.get('primary_key')} ({pk_strategy.get('strategy')})")
+            # # Primary key strategy
+            # pk_strategy = analysis.get('primary_key_strategy', {})
+            # print(f"✓ Primary Key Strategy: {pk_strategy.get('primary_key')} ({pk_strategy.get('strategy')})")
             
-            print("=" * 70 + "\n")
+            # print("=" * 70 + "\n")
             
         except Exception as e:
             print(f"[Router] Normalization validation error: {e}")

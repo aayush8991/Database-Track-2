@@ -62,8 +62,9 @@ class Analyzer:
                     "count": 0, 
                     "types": set(), 
                     "is_nested": False,
-                    "unique_values": set(), 
-                    "unique_capped_at": 0,
+                    "unique_values_count": 0,
+                    "unique_values_set": set(),  # Temporary set for calculation only
+                    "sample_values": [],  # Max 5 sample values for documentation
                 }
 
             self.field_stats[key]["count"] += 1
@@ -72,11 +73,15 @@ class Analyzer:
             if isinstance(value, (dict, list)):
                 self.field_stats[key]["is_nested"] = True
             else:
-                if len(self.field_stats[key]["unique_values"]) < 1000:
-                    try:
-                        self.field_stats[key]["unique_values"].add(str(value))
-                    except TypeError:
-                        pass
+                # Only use temp set for counting, don't persist raw values
+                if len(self.field_stats[key]["unique_values_set"]) < 100000:
+                    self.field_stats[key]["unique_values_set"].add(str(value))
+                
+                # Keep only 5 sample values for documentation
+                if len(self.field_stats[key]["sample_values"]) < 5:
+                    sample = str(value)[:100]  # Truncate to 100 chars
+                    if sample not in self.field_stats[key]["sample_values"]:
+                        self.field_stats[key]["sample_values"].append(sample)
 
     def _analyze_field_stats_for_table(self, record, table_name):
         """Analyze field statistics for a specific table."""
@@ -92,8 +97,9 @@ class Analyzer:
                     "count": 0,
                     "types": set(),
                     "is_nested": False,
-                    "unique_values": set(),
-                    "unique_capped_at": 0,
+                    "unique_values_count": 0,
+                    "unique_values_set": set(),  # Temporary set for calculation only
+                    "sample_values": [],  # Max 5 sample values for documentation
                 }
             
             table_schema[key]["count"] += 1
@@ -102,11 +108,15 @@ class Analyzer:
             if isinstance(value, (dict, list)):
                 table_schema[key]["is_nested"] = True
             else:
-                if len(table_schema[key]["unique_values"]) < 1000:
-                    try:
-                        table_schema[key]["unique_values"].add(str(value))
-                    except TypeError:
-                        pass
+                # Only use temp set for counting, don't persist raw values
+                if len(table_schema[key]["unique_values_set"]) < 100000:
+                    table_schema[key]["unique_values_set"].add(str(value))
+                
+                # Keep only 5 sample values for documentation
+                if len(table_schema[key]["sample_values"]) < 5:
+                    sample = str(value)[:100]  # Truncate to 100 chars
+                    if sample not in table_schema[key]["sample_values"]:
+                        table_schema[key]["sample_values"].append(sample)
 
     def _analyze_structure(self, record, current_table):
         """Builds relational map based on JSON structure Heuristics."""
@@ -146,19 +156,21 @@ class Analyzer:
 
     def get_schema_stats(self, table_name=None):
         """
-        Get schema statistics.
+        Get schema statistics for persistence.
+        IMPORTANT: Converts temp sets to ratios for JSON serialization.
+        Does NOT include raw field values.
         
         Args:
             table_name: If provided, return stats for specific table. Otherwise return global stats.
         
         Returns:
-            Dictionary of field statistics
+            Dictionary of field statistics (JSON-serializable, no raw values)
         """
         with self.lock:
             if table_name:
                 return self._process_table_stats(table_name)
             
-            # Old behavior - global stats (backward compatible)
+            # Global stats - clean version without raw values
             summary = {}
             for key, stats in self.field_stats.items():
                 freq_ratio = 0.0
@@ -169,7 +181,8 @@ class Analyzer:
                 is_stable = (len(unique_types) == 1)
                 detected_type = unique_types[0] if is_stable else "mixed"
 
-                total_unique = len(stats["unique_values"])
+                # Use the temporary set to count unique values (then discard the set)
+                total_unique = len(stats["unique_values_set"])
                 unique_ratio = (total_unique / stats["count"]) if stats["count"] > 0 else 0.0
                 
                 summary[key] = {
@@ -178,7 +191,9 @@ class Analyzer:
                     "detected_type": detected_type,
                     "is_nested": stats["is_nested"],
                     "unique_ratio": unique_ratio,
-                    "count": stats["count"]
+                    "unique_count": total_unique,
+                    "count": stats["count"],
+                    "sample_values": stats.get("sample_values", [])  # Max 5 sample values
                 }
             return summary
     
@@ -200,7 +215,8 @@ class Analyzer:
             is_stable = (len(unique_types) == 1)
             detected_type = unique_types[0] if is_stable else "mixed"
             
-            total_unique = len(stats["unique_values"])
+            # Use the temporary set to count unique values
+            total_unique = len(stats["unique_values_set"])
             unique_ratio = (total_unique / stats["count"]) if stats["count"] > 0 else 0.0
             
             summary[key] = {
@@ -209,12 +225,17 @@ class Analyzer:
                 "detected_type": detected_type,
                 "is_nested": stats["is_nested"],
                 "unique_ratio": unique_ratio,
-                "count": stats["count"]
+                "unique_count": total_unique,
+                "count": stats["count"],
+                "sample_values": stats.get("sample_values", [])  # Max 5 sample values
             }
         
         return summary
 
     def export_stats(self):
+        """
+        Export stats for persistence - does NOT include raw values.
+        """
         with self.lock:
             return {
                 "field_stats": {
@@ -222,8 +243,7 @@ class Analyzer:
                         "count": v["count"],
                         "types": list(v["types"]),  # Convert set to list
                         "is_nested": v["is_nested"],
-                        "unique_values": list(v["unique_values"]),  # Convert set to list
-                        "unique_capped_at": v["unique_capped_at"]
+                        "sample_values": v.get("sample_values", [])  # Only sample values, no raw data
                     }
                     for k, v in self.field_stats.items()
                 },
@@ -231,6 +251,10 @@ class Analyzer:
             }
 
     def load_stats(self, loaded_data):
+        """
+        Restore stats from persisted data.
+        Note: Temporary sets (unique_values_set) are NOT restored, they'll be rebuilt during ingestion.
+        """
         with self.lock:
             if loaded_data and "field_stats" in loaded_data:
                 for key, data in loaded_data["field_stats"].items():
@@ -238,7 +262,8 @@ class Analyzer:
                         "count": data.get("count", 0),
                         "types": set(data.get("types", [])),
                         "is_nested": data.get("is_nested", False),
-                        "unique_values": set(data.get("unique_values", [])),
-                        "unique_capped_at": data.get("unique_capped_at", 0),
+                        "unique_values_count": 0,
+                        "unique_values_set": set(),  # Will be rebuilt during ingestion
+                        "sample_values": data.get("sample_values", []),
                     }
             self.total_records_processed = loaded_data.get("total_records_processed", 0) if loaded_data else 0
