@@ -230,6 +230,173 @@ class SQLHandler:
             print("[SQL] Database reset complete")
         except Exception as e:
             print(f"[SQL] Reset failed: {e}")
+    
+    def create_tables_from_schema(self, schema_spec: dict):
+        """
+        Create tables with proper indexes and constraints based on schema specification.
+        
+        schema_spec format:
+        {
+            "root": {
+                "columns": {"uuid": "VARCHAR(36)", "username": "VARCHAR(255)"},
+                "primary_key": "uuid",
+                "foreign_keys": [...],
+                "indexes": [...]
+            }
+        }
+        """
+        for table_name, table_spec in schema_spec.items():
+            self._create_single_table(table_name, table_spec)
+    
+    def _create_single_table(self, table_name: str, spec: dict):
+        """Create a single table with all constraints and indexes."""
+        
+        columns = spec.get("columns", {})
+        primary_key = spec.get("primary_key")
+        foreign_keys = spec.get("foreign_keys", [])
+        indexes = spec.get("indexes", [])
+        unique_constraints = spec.get("unique_constraints", [])
+        
+        # Build CREATE TABLE statement
+        create_stmt = f"CREATE TABLE IF NOT EXISTS `{table_name}` (\n"
+        
+        col_defs = []
+        
+        # Add columns
+        for col_name, col_type in columns.items():
+            col_def = f"  `{col_name}` {col_type}"
+            col_defs.append(col_def)
+        
+        # Add primary key constraint (if single)
+        if primary_key and isinstance(primary_key, str):
+            col_defs.append(f"  PRIMARY KEY (`{primary_key}`)")
+        
+        # Add composite primary key (for junction tables)
+        elif primary_key and isinstance(primary_key, list):
+            pk_cols = ", ".join([f"`{c}`" for c in primary_key])
+            col_defs.append(f"  PRIMARY KEY ({pk_cols})")
+        
+        # Add unique constraints
+        for unique_cols in unique_constraints:
+            if isinstance(unique_cols, list):
+                uc_cols = ", ".join([f"`{c}`" for c in unique_cols])
+            else:
+                uc_cols = f"`{unique_cols}`"
+            col_defs.append(f"  UNIQUE KEY ({uc_cols})")
+        
+        # Add foreign key constraints
+        for fk in foreign_keys:
+            fk_col = fk.get("column")
+            fk_ref = fk.get("references")  # e.g., "root(uuid)"
+            fk_def = f"  FOREIGN KEY (`{fk_col}`) REFERENCES {fk_ref} ON DELETE CASCADE"
+            col_defs.append(fk_def)
+        
+        create_stmt += ",\n".join(col_defs)
+        create_stmt += "\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        
+        # Execute CREATE TABLE
+        try:
+            with self.engine.connect() as conn:
+                conn.execute(text(create_stmt))
+                conn.commit()
+            print(f"✓ Created table `{table_name}`")
+        except Exception as e:
+            print(f"⚠ Failed to create table `{table_name}`: {e}")
+        
+        # Create additional indexes (beyond primary key)
+        self._create_indexes(table_name, indexes)
+    
+    def _create_indexes(self, table_name: str, indexes: list):
+        """Create indexes on the table."""
+        
+        for idx_spec in indexes:
+            idx_type = idx_spec.get("type", "INDEX")
+            idx_cols = idx_spec.get("columns", [])
+            idx_name = idx_spec.get("name")
+            
+            # Skip primary key indexes (already created)
+            if idx_type == "PRIMARY":
+                continue
+            
+            # Auto-generate index name if not provided
+            if not idx_name:
+                idx_name = f"idx_{table_name}_{'_'.join(idx_cols)}"
+            
+            cols_str = ", ".join([f"`{c}`" for c in idx_cols])
+            create_idx_stmt = f"CREATE INDEX `{idx_name}` ON `{table_name}` ({cols_str})"
+            
+            try:
+                with self.engine.connect() as conn:
+                    conn.execute(text(create_idx_stmt))
+                    conn.commit()
+                print(f"  ✓ Created index `{idx_name}` on `{table_name}({cols_str})`")
+            except Exception as e:
+                # Index might already exist, that's okay
+                if "already exists" not in str(e).lower():
+                    print(f"  ⚠ Index creation failed: {e}")
+    
+    def show_table_schema(self, table_name: str) -> dict:
+        """Show schema of a table."""
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(text(f"DESCRIBE `{table_name}`"))
+                schema = {}
+                for row in result:
+                    col_name = row[0]
+                    col_type = row[1]
+                    col_null = row[2]
+                    col_key = row[3]
+                    schema[col_name] = {
+                        "type": col_type,
+                        "null": col_null,
+                        "key": col_key
+                    }
+                return schema
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def show_table_indexes(self, table_name: str) -> list:
+        """Show indexes on a table."""
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(text(f"SHOW INDEX FROM `{table_name}`"))
+                indexes = []
+                for row in result:
+                    indexes.append({
+                        "table": row[0],
+                        "index_name": row[2],
+                        "seq_in_index": row[3],
+                        "column_name": row[4],
+                        "unique": row[1] == 0  # 0 = unique
+                    })
+                return indexes
+        except Exception as e:
+            return [{"error": str(e)}]
+    
+    def verify_foreign_keys(self, table_name: str) -> dict:
+        """Verify foreign key constraints on a table."""
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(text(f"""
+                    SELECT CONSTRAINT_NAME, TABLE_NAME, COLUMN_NAME, 
+                           REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+                    FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = '{table_name}'
+                    AND REFERENCED_TABLE_NAME IS NOT NULL
+                """))
+                fks = []
+                for row in result:
+                    fks.append({
+                        "constraint": row[0],
+                        "table": row[1],
+                        "column": row[2],
+                        "referenced_table": row[3],
+                        "referenced_column": row[4]
+                    })
+                return {"table": table_name, "foreign_keys": fks}
+        except Exception as e:
+            return {"error": str(e)}
 
     def close(self):
         if self.conn:

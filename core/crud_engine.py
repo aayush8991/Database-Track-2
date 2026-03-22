@@ -14,6 +14,7 @@ class CRUDEngine:
         self.field_routing = self.meta.global_schema.get("field_routing", {})
         self.mongo_structure = self.meta.global_schema.get("mongo_structure", {})
         self.ref_resolver = ReferenceResolver(mongo_handler)
+        self.generated_queries = {}  # Track queries for exposure
 
     def _validate_record_against_schema(self, data):
         """Validate data against current schema metadata."""
@@ -123,6 +124,34 @@ class CRUDEngine:
             return self._execute_list(request_json)
         else:
             return {"status": "error", "message": f"Operation '{op}' not supported"}
+    
+    def handle_request_with_plan(self, request_json: dict, expose_plan: bool = True) -> dict:
+        """
+        Handle CRUD request and optionally expose the query plan.
+        
+        Supports field projection and includes query plan in response.
+        """
+        self.generated_queries = {}  # Reset for this request
+        expose = request_json.get("include_plan", expose_plan)
+        
+        op = request_json.get("operation", "").lower()
+        start_time = datetime.now()
+        
+        # Delegate to appropriate handler
+        result = self.handle_request(request_json)
+        
+        execution_time = (datetime.now() - start_time).total_seconds() * 1000
+        
+        # Add query plan if requested
+        if expose:
+            result["query_plan"] = {
+                "operation": op,
+                "queries": self.generated_queries,
+                "execution_time_ms": round(execution_time, 2)
+            }
+        
+        return result
+    
     @track_performance("crud_insert")
     def _execute_insert(self, request):
         """Insert a new record, split into SQL/Mongo based on metadata routing."""
@@ -365,3 +394,21 @@ class CRUDEngine:
                 return [dict(row._mapping) for row in result]
         except Exception:
             return []
+    
+    def _project_fields(self, record: dict, fields: list) -> dict:
+        """Project only requested fields from a record."""
+        if not fields:
+            return record
+        
+        projected = {}
+        for field in fields:
+            if field in record:
+                projected[field] = record[field]
+        
+        return projected
+    
+    def _log_query(self, query_type: str, query: str):
+        """Log generated query for exposure."""
+        if query_type not in self.generated_queries:
+            self.generated_queries[query_type] = []
+        self.generated_queries[query_type].append(query)

@@ -43,18 +43,24 @@ class Router:
         self._validate_normalization(batch)
 
     def _process_normalized_batch(self, batch):
-        """Splits complex nested JSON into SQL tables."""
+        """Splits complex nested JSON into SQL tables with M:N support."""
         aggregated_tables = {}
         
         for record in batch:
-            # Shred logic returns { 'root': [row], 'root_orders': [rows] }
-            shredded = self.normalizer.shred_record(record)
+            # Use enhanced shredding with M:N junction table support
+            shredded = self.normalizer.shred_record_with_m2m(record)
             
             # Merge into batch aggregations
             for table, rows in shredded.items():
                 if table not in aggregated_tables:
                     aggregated_tables[table] = []
                 aggregated_tables[table].extend(rows)
+        
+        # Get schema with proper constraints and indexes
+        schema = self.normalizer.get_schema_for_normalized_data(aggregated_tables)
+        
+        # Create tables with indexes and constraints
+        self.sql_handler.create_tables_from_schema(schema)
         
         # Insert into SQL using the dynamic handler
         self.sql_handler.insert_normalized_batch(aggregated_tables)

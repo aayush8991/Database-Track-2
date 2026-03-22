@@ -623,6 +623,7 @@ CREATE TABLE `{junction_table}` (
         report += "Normalization Decisions Made:\n"
         report += "-" * 70 + "\n"
         
+        
         if self.normalization_log:
             for log_entry in self.normalization_log:
                 report += f"{log_entry}\n"
@@ -631,3 +632,355 @@ CREATE TABLE `{junction_table}` (
         
         report += "\n" + "=" * 70 + "\n"
         return report
+    
+    def analyze_mongodb_strategy(self, data_samples: List[Dict]) -> Dict:
+        """
+        Analyze data samples and create embedding/referencing strategy for MongoDB.
+        
+        Strategy:
+        - EMBED if: small (< 1KB), rarely updated, not shared
+        - REFERENCE if: large (> 5KB), frequently updated, unbounded growth
+        
+        Returns:
+        {
+            "strategy": {
+                "field_name": {
+                    "decision": "EMBED" | "REFERENCE",
+                    "reasoning": "...",
+                    "characteristics": {...}
+                }
+            },
+            "schemas": {
+                "collection_name": {...}
+            }
+        }
+        """
+        if not data_samples:
+            return {"status": "error", "message": "No data samples provided"}
+        
+        strategy = {"field_decisions": {}}
+        
+        # Analyze each field in the sample documents
+        for sample in data_samples[:min(10, len(data_samples))]:
+            self._analyze_record_fields_for_mongo(sample, strategy, data_samples)
+        
+        # Generate collection schemas based on decisions
+        schemas = self._generate_mongodb_collection_schemas(strategy)
+        
+        return {
+            "status": "success",
+            "strategy": strategy,
+            "schemas": schemas
+        }
+    
+    def _analyze_record_fields_for_mongo(self, record: Dict, strategy: Dict, all_samples: List[Dict]):
+        """Analyze each field to determine embedding/referencing."""
+        
+        for field_name, value in record.items():
+            if field_name.startswith("_"):  # Skip system fields
+                continue
+            
+            # Skip if already analyzed
+            if field_name in strategy["field_decisions"]:
+                continue
+            
+            # Not nested - keep in main document
+            if not isinstance(value, (dict, list)):
+                strategy["field_decisions"][field_name] = {
+                    "decision": "EMBED",
+                    "reasoning": "Scalar value - always embed",
+                    "type": "scalar",
+                    "characteristics": {}
+                }
+                continue
+            
+            # Nested structure - needs decision
+            if isinstance(value, dict):
+                decision = self._decide_dict_strategy_mongo(field_name, value, all_samples)
+                strategy["field_decisions"][field_name] = decision
+            
+            elif isinstance(value, list):
+                decision = self._decide_array_strategy_mongo(field_name, value, all_samples)
+                strategy["field_decisions"][field_name] = decision
+    
+    def _decide_dict_strategy_mongo(self, field_name: str, value: Dict, all_samples: List[Dict]) -> Dict:
+        """Decide whether to embed or reference a nested object."""
+        
+        # Calculate characteristics
+        size_bytes = len(json.dumps(value, default=str))
+        depth = self._calculate_nesting_depth(value)
+        
+        # Check if nested object appears in all documents
+        appears_in_all = sum(1 for s in all_samples if field_name in s) == len(all_samples)
+        
+        # Check for high cardinality
+        unique_values = set()
+        for sample in all_samples:
+            if field_name in sample:
+                unique_values.add(json.dumps(sample[field_name], default=str, sort_keys=True))
+        cardinality_ratio = len(unique_values) / len(all_samples) if all_samples else 0
+        
+        # Make decision based on characteristics
+        characteristics = {
+            "size_bytes": size_bytes,
+            "depth": depth,
+            "appears_in_all": appears_in_all,
+            "cardinality_ratio": cardinality_ratio,
+            "num_keys": len(value)
+        }
+        
+        # Decision logic
+        if size_bytes < 500 and appears_in_all and depth <= 2:
+            # Small, always present, shallow → EMBED
+            decision = {
+                "decision": "EMBED",
+                "reasoning": f"Small object ({size_bytes}B), appears in all documents, shallow nesting",
+                "type": "nested_object",
+                "characteristics": characteristics
+            }
+        elif size_bytes > 2000 or cardinality_ratio > 0.8:
+            # Large or many unique values → REFERENCE
+            decision = {
+                "decision": "REFERENCE",
+                "reasoning": f"Large ({size_bytes}B) or high cardinality ({cardinality_ratio:.2%})",
+                "type": "nested_object",
+                "characteristics": characteristics,
+                "reference_collection": f"{field_name}_details"
+            }
+        else:
+            # Medium object → Default to EMBED
+            decision = {
+                "decision": "EMBED",
+                "reasoning": f"Medium-sized object ({size_bytes}B), reasonable cardinality",
+                "type": "nested_object",
+                "characteristics": characteristics
+            }
+        
+        return decision
+    
+    def _decide_array_strategy_mongo(self, field_name: str, value: List, all_samples: List[Dict]) -> Dict:
+        """Decide whether to embed array or reference external collection."""
+        
+        if not value:
+            # Empty array
+            return {
+                "decision": "EMBED",
+                "reasoning": "Empty array - embed as-is",
+                "type": "array",
+                "characteristics": {"length": 0}
+            }
+        
+        # Analyze array characteristics
+        array_sizes = []
+        for sample in all_samples:
+            if field_name in sample and isinstance(sample[field_name], list):
+                array_sizes.append(len(sample[field_name]))
+        
+        avg_length = sum(array_sizes) / len(array_sizes) if array_sizes else len(value)
+        max_length = max(array_sizes) if array_sizes else len(value)
+        
+        # Check if array contains objects
+        contains_objects = isinstance(value[0], dict) if value else False
+        
+        # Calculate total size if embedded
+        embedded_size = len(json.dumps(value, default=str))
+        
+        characteristics = {
+            "length": len(value),
+            "avg_length": avg_length,
+            "max_length": max_length,
+            "contains_objects": contains_objects,
+            "embedded_size_bytes": embedded_size,
+            "growth_pattern": "unbounded" if max_length > avg_length * 2 else "bounded"
+        }
+        
+        # Decision logic
+        if max_length > 1000:
+            # Unbounded growth (e.g., activity logs)
+            decision = {
+                "decision": "REFERENCE",
+                "reasoning": f"Unbounded array growth (max {max_length} items, avg {avg_length:.0f})",
+                "type": "array",
+                "characteristics": characteristics,
+                "reference_collection": field_name,
+                "link_field": "parent_id"
+            }
+        elif embedded_size > 5000:
+            # Too large to embed
+            decision = {
+                "decision": "REFERENCE",
+                "reasoning": f"Array too large when serialized ({embedded_size}B)",
+                "type": "array",
+                "characteristics": characteristics,
+                "reference_collection": field_name,
+                "link_field": "parent_id"
+            }
+        elif contains_objects and avg_length > 20:
+            # Complex objects, many of them
+            decision = {
+                "decision": "REFERENCE",
+                "reasoning": f"Array of {avg_length:.0f} complex objects - reference external collection",
+                "type": "array",
+                "characteristics": characteristics,
+                "reference_collection": field_name,
+                "link_field": "parent_id"
+            }
+        else:
+            # Small, bounded array → EMBED
+            decision = {
+                "decision": "EMBED",
+                "reasoning": f"Small bounded array ({avg_length:.0f} items, {embedded_size}B)",
+                "type": "array",
+                "characteristics": characteristics
+            }
+        
+        return decision
+    
+    def _calculate_nesting_depth(self, obj, current_depth: int = 0) -> int:
+        """Calculate maximum nesting depth of an object."""
+        if not isinstance(obj, (dict, list)):
+            return current_depth
+        
+        if isinstance(obj, dict):
+            if not obj:
+                return current_depth
+            max_depth = current_depth
+            for v in obj.values():
+                depth = self._calculate_nesting_depth(v, current_depth + 1)
+                max_depth = max(max_depth, depth)
+            return max_depth
+        
+        elif isinstance(obj, list):
+            if not obj:
+                return current_depth
+            return self._calculate_nesting_depth(obj[0], current_depth + 1)
+        
+        return current_depth
+    
+    def _generate_mongodb_collection_schemas(self, strategy: Dict) -> Dict:
+        """Generate MongoDB collection schemas with validation rules."""
+        schemas = {}
+        
+        # Main collection schema
+        main_schema = self._create_main_mongo_collection_schema(strategy)
+        schemas["main_collection"] = main_schema
+        
+        # Referenced collection schemas (for REFERENCE decisions)
+        for field_name, decision in strategy["field_decisions"].items():
+            if decision["decision"] == "REFERENCE":
+                ref_collection = decision.get("reference_collection", field_name)
+                if ref_collection not in schemas:
+                    ref_schema = self._create_reference_mongo_collection_schema(
+                        ref_collection, 
+                        field_name,
+                        decision
+                    )
+                    schemas[ref_collection] = ref_schema
+        
+        return schemas
+    
+    def _create_main_mongo_collection_schema(self, strategy: Dict) -> Dict:
+        """Create schema for main document collection."""
+        
+        schema = {
+            "validator": {
+                "$jsonSchema": {
+                    "bsonType": "object",
+                    "required": ["uuid", "created_at"],
+                    "properties": {
+                        "uuid": {
+                            "bsonType": "string",
+                            "description": "Unique document identifier"
+                        },
+                        "created_at": {
+                            "bsonType": "date",
+                            "description": "Document creation timestamp"
+                        }
+                    }
+                }
+            },
+            "indexes": [
+                {"key": {"uuid": 1}, "unique": True},
+                {"key": {"created_at": 1}}
+            ],
+            "comment": "Main document collection with embedded and referenced fields"
+        }
+        
+        # Add properties for each field
+        for field_name, decision in strategy["field_decisions"].items():
+            if decision["decision"] == "EMBED":
+                # Add embedded field schema
+                schema["validator"]["$jsonSchema"]["properties"][field_name] = \
+                    self._get_field_mongo_schema(field_name, decision)
+            else:
+                # Add reference field (just store the ID)
+                ref_field = f"{field_name}_id"
+                schema["validator"]["$jsonSchema"]["properties"][ref_field] = {
+                    "bsonType": "string",
+                    "description": f"Reference to {decision.get('reference_collection', field_name)}"
+                }
+        
+        return schema
+    
+    def _create_reference_mongo_collection_schema(self, collection_name: str, 
+                                                  field_name: str, 
+                                                  decision: Dict) -> Dict:
+        """Create schema for a referenced collection."""
+        
+        schema = {
+            "validator": {
+                "$jsonSchema": {
+                    "bsonType": "object",
+                    "required": ["_id", "parent_id"],
+                    "properties": {
+                        "_id": {
+                            "bsonType": "objectId",
+                            "description": "MongoDB object ID"
+                        },
+                        "parent_id": {
+                            "bsonType": "string",
+                            "description": "Reference to parent document uuid"
+                        },
+                        "created_at": {
+                            "bsonType": "date",
+                            "description": "Document creation timestamp"
+                        },
+                        "data": {
+                            "description": "Referenced data"
+                        }
+                    }
+                }
+            },
+            "indexes": [
+                {"key": {"parent_id": 1}},
+                {"key": {"created_at": 1}}
+            ],
+            "comment": f"Referenced collection for {field_name} (Decision: {decision['decision']})"
+        }
+        
+        return schema
+    
+    def _get_field_mongo_schema(self, field_name: str, decision: Dict) -> Dict:
+        """Get JSON Schema for a field based on decision."""
+        
+        field_type = decision.get("type", "object")
+        
+        if field_type == "scalar":
+            return {"bsonType": ["string", "int", "double", "bool", "null"]}
+        
+        elif field_type == "nested_object":
+            return {
+                "bsonType": "object",
+                "description": f"Embedded object: {field_name}",
+                "additionalProperties": True
+            }
+        
+        elif field_type == "array":
+            return {
+                "bsonType": "array",
+                "description": f"Embedded array: {field_name}",
+                "items": {"bsonType": ["string", "int", "double", "bool", "object"]}
+            }
+        
+        return {"bsonType": "object"}
+
