@@ -15,6 +15,58 @@ class CRUDEngine:
         self.mongo_structure = self.meta.global_schema.get("mongo_structure", {})
         self.ref_resolver = ReferenceResolver(mongo_handler)
         self.generated_queries = {}  # Track queries for exposure
+        self._ensure_root_table_exists()
+
+    def _ensure_root_table_exists(self):
+        """Ensure the root table exists, create if not."""
+        try:
+            with self.sql.engine.connect() as conn:
+                # Check if root table exists
+                result = conn.execute(text("""
+                    SELECT COUNT(*) FROM information_schema.tables 
+                    WHERE table_schema = DATABASE() AND table_name = 'root'
+                """))
+                table_exists = result.scalar() > 0
+                
+                if not table_exists:
+                    # Create root table with basic schema
+                    conn.execute(text("""
+                        CREATE TABLE `root` (
+                            `uuid` VARCHAR(36) PRIMARY KEY,
+                            `username` VARCHAR(255),
+                            `email` VARCHAR(255),
+                            `age` INT,
+                            `timestamp` DATETIME,
+                            `sys_ingested_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            INDEX idx_username (username),
+                            INDEX idx_email (email)
+                        )
+                    """))
+                    conn.commit()
+                    print("[CRUDEngine] Created root table")
+        except Exception as e:
+            print(f"[CRUDEngine] Warning: Could not ensure root table: {e}")
+
+    def _ensure_columns_exist(self, table_name, columns):
+        """Ensure all columns exist in the table, create if not."""
+        try:
+            with self.sql.engine.connect() as conn:
+                # Get existing columns
+                result = conn.execute(text(f"DESCRIBE `{table_name}`"))
+                existing = {row[0] for row in result.fetchall()}
+                
+                # Add missing columns
+                for col in columns:
+                    if col not in existing:
+                        # Infer type based on value (simple heuristic)
+                        col_type = "TEXT"
+                        alter_sql = f"ALTER TABLE `{table_name}` ADD COLUMN `{col}` {col_type}"
+                        conn.execute(text(alter_sql))
+                        print(f"[CRUDEngine] Added column '{col}' to table '{table_name}'")
+                
+                conn.commit()
+        except Exception as e:
+            print(f"[CRUDEngine] Warning: Could not ensure columns: {e}")
 
     def _validate_record_against_schema(self, data):
         """Validate data against current schema metadata."""
@@ -194,6 +246,9 @@ class CRUDEngine:
             
             # Insert into SQL if data present
             if sql_data:
+                # Ensure all columns exist before insert
+                self._ensure_columns_exist("root", sql_data.keys())
+                
                 cols = ', '.join(f'`{k}`' for k in sql_data.keys())
                 vals = ', '.join([f':{k}' for k in sql_data.keys()])
                 with self.sql.engine.connect() as conn:
