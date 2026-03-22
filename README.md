@@ -34,11 +34,6 @@ See [architecture.txt](architecture.txt) for a diagram and [system_concepts.md](
     cd Database-Track-2
     ```
 
-2.  **Install Dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
-
 ##  Quick Start
 
 **Prerequisites:** MySQL and MongoDB must be running locally.
