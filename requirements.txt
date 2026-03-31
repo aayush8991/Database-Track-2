@@ -11,3 +11,4 @@ pytest
 sqlalchemy
 python-dotenv
 pytest-cov
+pandas
