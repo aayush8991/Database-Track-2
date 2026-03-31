@@ -1,26 +1,56 @@
 import mysql.connector
 import os
+import threading
+import time
 from dotenv import load_dotenv
 from sqlalchemy import text, create_engine
 import pandas as pd
 
 load_dotenv()
 
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    v = os.getenv(name)
+    if v is None:
+        return default
+    return str(v).strip().lower() in ("1", "true", "yes", "y", "on")
+
 class SQLHandler:
     def __init__(self):
+        ssl_disabled = _env_bool("SQL_SSL_DISABLED", default=True)
         self.config = {
             'host': os.getenv("SQL_HOST"),
             'port': int(os.getenv("SQL_PORT", 3306)),
             'user': os.getenv("SQL_USER"),
             'password': os.getenv("SQL_PASSWORD"),
-            'database': os.getenv("SQL_DB_NAME")
+            'database': os.getenv("SQL_DB_NAME"),
+            'ssl_disabled': ssl_disabled,
         }
         self.table_name = "structured_data"
         self.conn = None
         self.cursor = None
         self.engine = None
+        self._conn_lock = threading.RLock()
+        self._last_connect_log_ts = 0.0
         self._init_engine()
         self.connect()
+
+    def ensure_connection(self):
+        """Ensure the mysql connection/cursor is alive; reconnect if needed."""
+        with self._conn_lock:
+            try:
+                if self.conn is None:
+                    self.connect()
+                    return
+                # reconnect=True makes connector reopen transparently when possible
+                self.conn.ping(reconnect=True, attempts=1, delay=0)
+                if self.cursor is None:
+                    self.cursor = self.conn.cursor(buffered=True)
+            except Exception:
+                try:
+                    self.connect()
+                except Exception:
+                    pass
 
     def _init_engine(self):
         """Initialize SQLAlchemy engine for pandas operations with connection pooling."""
@@ -34,6 +64,10 @@ class SQLHandler:
                 max_overflow=20,           # Max overflow beyond pool_size
                 pool_recycle=3600,         # Recycle connections after 1 hour
                 pool_pre_ping=True,        # Test connections before using them
+                connect_args={
+                    "use_pure": True,      # avoid mysql-connector C-ext crashes on newer Python runtimes
+                    "ssl_disabled": self.config.get("ssl_disabled", True),
+                },
                 echo=False                 # Set to True for SQL debugging
             )
             print("[SQLHandler] Engine initialized with connection pooling (size=10, overflow=20)")
@@ -42,13 +76,28 @@ class SQLHandler:
             self.engine = None
 
     def connect(self):
-        try:
-            self.conn = mysql.connector.connect(**self.config)
-            self.cursor = self.conn.cursor()
-            self._create_base_table()
-            print("[SQL] Connected to Remote Database successfully.")
-        except mysql.connector.Error as err:
-            print(f"[SQL Error] Connection failed: {err}")
+        with self._conn_lock:
+            try:
+                try:
+                    if self.cursor:
+                        self.cursor.close()
+                except Exception:
+                    pass
+                try:
+                    if self.conn:
+                        self.conn.close()
+                except Exception:
+                    pass
+
+                self.conn = mysql.connector.connect(**self.config, use_pure=True)
+                self.cursor = self.conn.cursor(buffered=True)
+                self._create_base_table()
+                now = time.time()
+                if now - self._last_connect_log_ts >= 5:
+                    print("[SQL] Connected to Remote Database successfully.")
+                    self._last_connect_log_ts = now
+            except mysql.connector.Error as err:
+                print(f"[SQL Error] Connection failed: {err}")
 
     def _create_base_table(self):
         query = f"""

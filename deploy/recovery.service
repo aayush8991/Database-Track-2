@@ -1,0 +1,17 @@
+[Unit]
+Description=Recovery Service for Database-Track-2
+After=network.target
+
+[Service]
+Type=simple
+# Update `User=` to the system user that should run the service
+User=destructor
+WorkingDirectory=/Users/destructor/Desktop/Databases/Database-Track-2
+Environment=PYTHONUNBUFFERED=1
+# ExecStart points to the venv python and the recovery script
+ExecStart=/Users/destructor/Desktop/Databases/Database-Track-2/.venv/bin/python3 /Users/destructor/Desktop/Databases/Database-Track-2/core/recovery_service.py --interval 60
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
