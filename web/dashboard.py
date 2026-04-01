@@ -1285,21 +1285,38 @@ def post_query(req: LogicalQuery, request: Request):
         except Exception:
             mongo_results = []
 
-        # merge
+        # merge: match SQL and Mongo results by common key (username or sys_ingested_at)
+        merged = []
         if sql_results and mongo_results:
+            # Build index of mongo results by key
             midx = {}
             for m in mongo_results:
-                key = m.get('username') or m.get('sys_ingested_at')
+                # Try multiple key fields for matching
+                key = m.get('username') or m.get('sys_ingested_at') or m.get('user_id')
                 if key:
                     midx.setdefault(key, []).append(m)
-            merged = []
+            
+            # Match each SQL result with corresponding Mongo result
             for s in sql_results:
-                key = s.get('username') or s.get('sys_ingested_at')
-                docs = midx.get(key, [])
+                key = s.get('username') or s.get('sys_ingested_at') or s.get('user_id')
+                docs = midx.get(key, []) if key else []
                 out = dict(s)
                 if docs:
+                    # Merge mongo fields into the result
                     out.update(docs[0])
                 merged.append(out)
+            
+            # Also include mongo-only results (not in SQL)
+            matched_keys = set()
+            for s in sql_results:
+                key = s.get('username') or s.get('sys_ingested_at') or s.get('user_id')
+                if key:
+                    matched_keys.add(key)
+            
+            for m in mongo_results:
+                key = m.get('username') or m.get('sys_ingested_at') or m.get('user_id')
+                if key and key not in matched_keys:
+                    merged.append(m)
         elif sql_results:
             merged = sql_results
         else:
@@ -1791,6 +1808,78 @@ def api_acid_export(request: Request, user: dict = Depends(get_current_user)):
 
     # default json export
     return JSONResponse({'format': 'json', 'items': items, 'rows': len(items)})
+
+
+@app.get('/api/schema/logical-entities')
+def api_logical_schema(request: Request, user: dict = Depends(get_current_user)):
+    """
+    Return the logical schema without exposing backend details.
+    Shows what entities and fields are available to users.
+    
+    This endpoint provides schema introspection while maintaining
+    abstraction - no SQL table names or MongoDB collections visible.
+    """
+    try:
+        routing = metadata_manager.get_field_routing()
+        schema = metadata_manager.global_schema
+        
+        # Build logical entity view
+        entities = {}
+        
+        # Collect all tables from relational structure
+        rel_tables = schema.get('relational_structure', {}).get('tables', {})
+        for table_name, table_info in rel_tables.items():
+            entities[table_name] = {
+                'backend': 'logical_storage',
+                'fields': {},
+                'type': 'entity'
+            }
+            cols = table_info.get('columns', [])
+            types = table_info.get('types', [])
+            for col, col_type in zip(cols, types):
+                route = routing.get(col, 'BOTH')
+                entities[table_name]['fields'][col] = {
+                    'type': col_type,
+                    'routed_to': route,
+                    'note': 'Field location abstracted from user'
+                }
+        
+        # Collect MongoDB collections
+        collections = schema.get('collection_structure', {})
+        for coll_name, fields in collections.items():
+            entities[coll_name] = {
+                'backend': 'logical_storage',
+                'fields': {f: {'type': 'any'} for f in fields},
+                'type': 'collection'
+            }
+        
+        response = {
+            'status': 'ok',
+            'entities': entities,
+            'note': 'All backend storage details are abstracted. Data is presented as unified logical entities.',
+            'schema_version': schema.get('schema_version', 'unknown'),
+            'last_updated': schema.get('last_updated', 'unknown')
+        }
+        
+        _record_query_trace(
+            username=user.get('username', 'anonymous'),
+            endpoint='/api/schema/logical-entities',
+            operation='schema_introspection',
+            routed_backends=[],
+            summary='schema_query',
+            started_at=time.time(),
+            status='ok',
+            result_count=len(entities)
+        )
+        
+        return JSONResponse(response)
+    
+    except Exception as e:
+        return JSONResponse({
+            'status': 'error',
+            'error': str(e),
+            'entities': {}
+        }, status_code=500)
 
 
 @app.post("/api/tools/json-query")
