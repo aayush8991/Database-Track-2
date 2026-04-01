@@ -536,5 +536,245 @@ function renderEntityResults(entity, rows){
   el.innerHTML = html;
 }
 
+// ====== Logical Query Builder ======
+
+function openLogicalQueryPanel(){
+  const acid = document.getElementById('acid-section');
+  const session = document.getElementById('session-section');
+  const trace = document.getElementById('trace-section');
+  const json = document.getElementById('json-panel');
+  const logical = document.getElementById('logical-query-panel');
+  
+  if(acid) acid.style.display = 'none';
+  if(session) session.style.display = 'none';
+  if(trace) trace.style.display = 'none';
+  if(json) json.style.display = 'none';
+  if(logical) logical.style.display = 'block';
+  
+  showResult('Logical Query Builder', {status:'ready', hint:'Build and execute queries without knowing about backends (SQL/MongoDB).'});
+  if(logical) logical.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function updateLogicalQuerySections(){
+  const op = (document.getElementById('lq-operation')?.value || '').toLowerCase();
+  const fieldsSection = document.getElementById('lq-fields-section');
+  const dataSection = document.getElementById('lq-data-section');
+  const conditionsSection = document.getElementById('lq-conditions-section');
+  
+  // Show/hide sections based on operation
+  if(fieldsSection) fieldsSection.style.display = (op === 'read') ? 'block' : 'none';
+  if(dataSection) dataSection.style.display = (op === 'insert' || op === 'update') ? 'block' : 'none';
+  if(conditionsSection) conditionsSection.style.display = (op !== 'insert') ? 'block' : 'none';
+}
+
+async function executeLogicalQuery(){
+  const operation = (document.getElementById('lq-operation')?.value || 'read').toLowerCase();
+  const entity = document.getElementById('lq-entity')?.value?.trim();
+  const status = document.getElementById('lq-status');
+  const resultsDiv = document.getElementById('lq-results');
+  const resultsContent = document.getElementById('lq-results-content');
+  
+  if(!entity){
+    if(status) status.textContent = 'Error: Entity name is required';
+    return;
+  }
+  
+  const payload = {
+    operation: operation,
+    entity: entity
+  };
+  
+  // Parse fields (for READ)
+  if(operation === 'read'){
+    const fieldsText = document.getElementById('lq-fields')?.value?.trim();
+    if(fieldsText){
+      payload.fields = fieldsText.split(',').map(f => f.trim()).filter(f => f);
+    }
+  }
+  
+  // Parse data (for INSERT/UPDATE)
+  if(operation === 'insert' || operation === 'update'){
+    const dataText = document.getElementById('lq-data')?.value?.trim();
+    if(dataText){
+      try{
+        payload.data = JSON.parse(dataText);
+      }catch(e){
+        if(status) status.textContent = `Error parsing data JSON: ${e.message}`;
+        return;
+      }
+    }
+  }
+  
+  // Parse conditions (for READ/UPDATE/DELETE)
+  if(operation !== 'insert'){
+    const condText = document.getElementById('lq-conditions')?.value?.trim();
+    if(condText){
+      try{
+        payload.conditions = JSON.parse(condText);
+      }catch(e){
+        if(status) status.textContent = `Error parsing conditions JSON: ${e.message}`;
+        return;
+      }
+    }
+  }
+  
+  if(status) status.textContent = 'Executing...';
+  
+  const result = await callApi('/query', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  
+  if(status) status.textContent = `Completed (${result._http_status || 'unknown'})`;
+  
+  // Format results based on operation
+  if(resultsDiv) resultsDiv.style.display = 'block';
+  
+  if(operation === 'read' && result.results && Array.isArray(result.results)){
+    // Display as formatted table for READ operations
+    const html = formatResultsAsTable(result.results);
+    if(resultsContent) resultsContent.innerHTML = html;
+  } else {
+    // Display as JSON for other operations
+    if(resultsContent) resultsContent.textContent = JSON.stringify(result, null, 2);
+  }
+}
+
+function formatResultsAsTable(rows){
+  if(!Array.isArray(rows) || rows.length === 0){
+    return '<div class="muted">No results found</div>';
+  }
+  
+  // Get all unique columns from all rows
+  const columns = new Set();
+  for(const row of rows){
+    if(typeof row === 'object'){
+      for(const key of Object.keys(row)){
+        columns.add(key);
+      }
+    }
+  }
+  const cols = Array.from(columns).sort();
+  
+  // Build table
+  let html = '<table class="results-table" style="width:100%;border-collapse:collapse;margin-top:8px">';
+  
+  // Header
+  html += '<thead style="background:rgba(255,255,255,0.05);border-bottom:2px solid rgba(255,255,255,0.1)">';
+  html += '<tr>';
+  for(const col of cols){
+    html += `<th style="padding:12px;text-align:left;font-weight:600;border-right:1px solid rgba(255,255,255,0.05)">${escapeHtml(col)}</th>`;
+  }
+  html += '</tr>';
+  html += '</thead>';
+  
+  // Body
+  html += '<tbody>';
+  for(let i = 0; i < rows.length; i++){
+    const row = rows[i];
+    html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);${i % 2 === 0 ? 'background:rgba(255,255,255,0.02)' : ''}">`;
+    for(const col of cols){
+      let value = row[col];
+      if(value === null || value === undefined){
+        value = '<span class="muted">null</span>';
+      } else if(typeof value === 'object'){
+        value = `<code style="background:rgba(0,0,0,0.3);padding:2px 4px;border-radius:3px;font-size:0.85em">${escapeHtml(JSON.stringify(value))}</code>`;
+      } else {
+        value = escapeHtml(String(value));
+      }
+      html += `<td style="padding:12px;border-right:1px solid rgba(255,255,255,0.05);font-size:0.95em">${value}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody>';
+  html += '</table>';
+  
+  return html;
+}
+
+function escapeHtml(text){
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function previewLogicalQuery(){
+  const operation = (document.getElementById('lq-operation')?.value || 'read').toLowerCase();
+  const entity = document.getElementById('lq-entity')?.value?.trim();
+  
+  if(!entity){
+    alert('Entity name is required');
+    return;
+  }
+  
+  const payload = {
+    operation: operation,
+    entity: entity
+  };
+  
+  // Parse fields (for READ)
+  if(operation === 'read'){
+    const fieldsText = document.getElementById('lq-fields')?.value?.trim();
+    if(fieldsText){
+      payload.fields = fieldsText.split(',').map(f => f.trim()).filter(f => f);
+    }
+  }
+  
+  // Parse data (for INSERT/UPDATE)
+  if(operation === 'insert' || operation === 'update'){
+    const dataText = document.getElementById('lq-data')?.value?.trim();
+    if(dataText){
+      try{
+        payload.data = JSON.parse(dataText);
+      }catch(e){
+        alert(`Error parsing data JSON: ${e.message}`);
+        return;
+      }
+    }
+  }
+  
+  // Parse conditions (for READ/UPDATE/DELETE)
+  if(operation !== 'insert'){
+    const condText = document.getElementById('lq-conditions')?.value?.trim();
+    if(condText){
+      try{
+        payload.conditions = JSON.parse(condText);
+      }catch(e){
+        alert(`Error parsing conditions JSON: ${e.message}`);
+        return;
+      }
+    }
+  }
+  
+  alert('Query payload to be sent:\n\n' + JSON.stringify(payload, null, 2));
+}
+
+// Attach event listeners
+document.addEventListener('DOMContentLoaded', ()=>{
+  // Logical Query Builder
+  const btnLogical = document.getElementById('btn-logical-query');
+  if(btnLogical) btnLogical.addEventListener('click', openLogicalQueryPanel);
+  
+  const opSelect = document.getElementById('lq-operation');
+  if(opSelect) opSelect.addEventListener('change', updateLogicalQuerySections);
+  
+  const execBtn = document.getElementById('lq-execute');
+  if(execBtn) execBtn.addEventListener('click', executeLogicalQuery);
+  
+  const previewBtn = document.getElementById('lq-preview');
+  if(previewBtn) previewBtn.addEventListener('click', previewLogicalQuery);
+  
+  const clearBtn = document.getElementById('lq-clear');
+  if(clearBtn) clearBtn.addEventListener('click', ()=>{
+    document.getElementById('lq-entity').value = '';
+    document.getElementById('lq-fields').value = '';
+    document.getElementById('lq-data').value = '';
+    document.getElementById('lq-conditions').value = '';
+    document.getElementById('lq-results').style.display = 'none';
+    document.getElementById('lq-status').textContent = '';
+  });
+});
+
 // Default landing view
 showHome();
