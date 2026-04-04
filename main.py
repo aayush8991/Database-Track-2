@@ -121,7 +121,7 @@ def process_worker(raw_queue, write_queue, analyzer, classifier):
             buffer = []
             last_dispatch = now
 
-def router_worker(write_queue, router, analyzer):
+def router_worker(write_queue, router, analyzer, meta_manager):
     print("[Router] Worker started.")
     
     last_save_time = time.time()
@@ -138,12 +138,9 @@ def router_worker(write_queue, router, analyzer):
             # Update analyzer's field_stats with db assignments from router
             analyzer.update_db_assignment(decisions)
             
-            full_metadata = {
-                "analyzer": analyzer.export_stats(),
-                # "classifier_decisions": payload.get('classifier_decisions', {}),
-                # "router_decisions": router.export_decisions()
-            }
-            save_metadata(full_metadata)
+            meta_manager.sync_analyzer(analyzer)
+            meta_manager.sync_router(router)
+            meta_manager.save_metadata()
             
             write_queue.task_done()
             
@@ -191,7 +188,7 @@ def main():
     # 4. Start Threads
     t_ingest = threading.Thread(target=ingest_worker, args=(raw_queue, DATA_STREAM_URL))
     t_process = threading.Thread(target=process_worker, args=(raw_queue, write_queue, analyzer, classifier))
-    t_router = threading.Thread(target=router_worker, args=(write_queue, router, analyzer))
+    t_router = threading.Thread(target=router_worker, args=(write_queue, router, analyzer, meta_manager))
 
     t_ingest.start()
     t_process.start()
