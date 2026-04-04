@@ -1,0 +1,57 @@
+:root{
+  --bg:#0f1724; --muted:#9aa4b2; --accent:#60a5fa; --panel:#0b1220; --card:#0e1622;
+}
+*{box-sizing:border-box;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif}
+body{margin:0;background:linear-gradient(180deg,var(--bg),#071021);color:#e6eef8}
+.app{display:flex;height:100vh}
+.sidebar{width:220px;background:var(--panel);padding:18px;display:flex;flex-direction:column;gap:18px}
+.sidebar h2{margin:0 0 6px 0;font-size:18px}
+.sidebar nav button{display:block;width:100%;padding:10px;margin:6px 0;border:0;background:transparent;color:var(--muted);text-align:left;border-radius:6px;cursor:pointer}
+.sidebar nav button:hover{background:rgba(255,255,255,0.03);color:var(--accent)}
+.tools{margin-top:auto}
+.tools h3{margin:0 0 6px 0;color:var(--muted);font-size:13px}
+.tools button{display:block;width:100%;padding:8px;margin:6px 0;border:0;background:#081325;color:var(--muted);border-radius:6px;cursor:pointer}
+.tools button:hover{background:#0b263d;color:var(--accent)}
+.main{flex:1;padding:18px;display:flex;flex-direction:column}
+.main header{height:48px;display:flex;align-items:center;border-bottom:1px solid rgba(255,255,255,0.03)}
+#content{padding:16px;margin-top:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:8px;overflow:auto}
+.card{background:var(--card);padding:12px;border-radius:8px;margin-bottom:10px}
+.btn{display:inline-block;padding:8px 12px;background:var(--accent);color:#06202b;border-radius:6px;border:0;cursor:pointer}
+pre{white-space:pre-wrap;color:var(--muted)}
+
+/* JSON editor panel */
+.json-panel{display:none;padding:12px;background:rgba(255,255,255,0.01);border-radius:8px}
+.form-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.form-row input[type="text"], .form-row input[type="number"]{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:6px;color:var(--muted);flex:1}
+.json-area{width:100%;min-height:160px;background:#051222;border:1px solid rgba(255,255,255,0.03);color:var(--muted);padding:12px;border-radius:6px;font-family:monospace;font-size:13px;resize:vertical}
+.panel-actions{display:flex;gap:8px;margin-top:8px}
+.muted{color:var(--muted);font-size:13px}
+
+/* ACID single-section layout */
+.acid-section{padding:14px}
+.acid-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.acid-test-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.acid-test-card{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:150px}
+.acid-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.acid-card-top h4{margin:0;font-size:14px;color:#eaf1ff}
+.acid-mini{font-size:12px;color:var(--muted);line-height:1.35;min-height:56px;max-height:88px;overflow:auto;padding:6px;background:rgba(6,18,34,0.55);border-radius:6px;border:1px solid rgba(255,255,255,0.03)}
+.acid-run-btn{align-self:flex-start;padding:6px 10px;font-size:12px}
+.acid-all-row{display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.05)}
+
+/* ACID panel */
+.acid-header-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.acid-meta{color:var(--muted);font-size:13px;margin-bottom:8px}
+.acid-badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;background:#334155;color:#dbeafe}
+.acid-badge.pass{background:#14532d;color:#dcfce7}
+.acid-badge.fail{background:#7f1d1d;color:#fee2e2}
+.acid-badge.running{background:#1e3a8a;color:#dbeafe}
+.acid-table{width:100%;border-collapse:collapse;background:rgba(255,255,255,0.01);border-radius:8px;overflow:hidden}
+.acid-table th,.acid-table td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.05);text-align:left;vertical-align:top}
+.acid-table th{color:#bfdbfe;font-size:12px;font-weight:600;background:rgba(37,99,235,0.12)}
+.acid-table td{color:var(--muted);font-size:12px}
+.acid-table.compact th,.acid-table.compact td{padding:7px 9px}
+
+@media (max-width: 900px){
+  .acid-test-grid{grid-template-columns:1fr}
+}
+

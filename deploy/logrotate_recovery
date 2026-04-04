@@ -1,0 +1,9 @@
+/var/log/recovery_service.out /var/log/recovery_service.err {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}

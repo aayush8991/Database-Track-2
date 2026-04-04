@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Adaptive Dashboard</title>
+  <link rel="stylesheet" href="/ui/static/style.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <h2>Dashboard</h2>
+      <nav>
+        <button class="nav-btn" data-view="home">Home</button>
+        <button class="nav-btn" data-view="logs">Logs</button>
+        <button class="nav-btn" data-view="users">Users</button>
+        <button class="nav-btn" data-view="alerts">Alerts</button>
+        <button class="nav-btn" data-view="readings">Readings</button>
+        <button class="nav-btn" data-view="sensors">Sensors</button>
+      </nav>
+
+      <section class="tools">
+        <h3>Tools</h3>
+        <button id="btn-logical-query">Logical Query Builder</button>
+        <button id="btn-acid-open">ACID Testing</button>
+        <button id="btn-session-open">Session Monitor</button>
+        <button id="btn-trace-open">Query Trace</button>
+        <button id="btn-json">JSON Query</button>
+        <button id="btn-docs">Documentation</button>
+      </section>
+    </aside>
+
+    <main class="main">
+      <header style="display:flex;gap:12px;align-items:center">
+        <div style="flex:1">Adaptive DB Dashboard</div>
+        <div style="opacity:.6">Status: <span id="svc-state">ready</span></div>
+        <div id="auth-area" style="display:flex;align-items:center;gap:8px">
+          <input id="auth-user" type="text" placeholder="user" style="padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--muted);width:110px" />
+          <div style="display:flex;align-items:center;gap:6px">
+            <input id="auth-pass" type="password" placeholder="password" style="padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--muted);width:110px" />
+            <button id="auth-toggle" class="btn" style="background:#203040;color:var(--muted);padding:6px">Show</button>
+          </div>
+          <button id="auth-login" class="btn">Login</button>
+          <button id="auth-logout" class="btn" style="display:none">Logout</button>
+          <div id="auth-who" class="muted" style="margin-left:8px"></div>
+        </div>
+      </header>
+      <section id="content">
+        <div id="result" class="card">Select an action to begin.</div>
+
+        <section id="acid-section" class="card acid-section" style="display:none">
+          <div class="acid-section-head">
+            <strong>ACID Testing</strong>
+            <span class="muted">Run individual properties or all at once</span>
+          </div>
+
+          <div class="acid-test-grid">
+            <article class="acid-test-card">
+              <div class="acid-card-top">
+                <h4>Atomicity</h4>
+                <span id="acid-status-atomicity" class="acid-badge">NOT RUN</span>
+              </div>
+              <div id="acid-body-atomicity" class="acid-mini">No run yet.</div>
+              <button id="acid-run-atomicity" class="btn acid-run-btn">Run Test</button>
+            </article>
+
+            <article class="acid-test-card">
+              <div class="acid-card-top">
+                <h4>Consistency</h4>
+                <span id="acid-status-consistency" class="acid-badge">NOT RUN</span>
+              </div>
+              <div id="acid-body-consistency" class="acid-mini">No run yet.</div>
+              <button id="acid-run-consistency" class="btn acid-run-btn">Run Test</button>
+            </article>
+
+            <article class="acid-test-card">
+              <div class="acid-card-top">
+                <h4>Isolation</h4>
+                <span id="acid-status-isolation" class="acid-badge">NOT RUN</span>
+              </div>
+              <div id="acid-body-isolation" class="acid-mini">No run yet.</div>
+              <button id="acid-run-isolation" class="btn acid-run-btn">Run Test</button>
+            </article>
+
+            <article class="acid-test-card">
+              <div class="acid-card-top">
+                <h4>Durability</h4>
+                <span id="acid-status-durability" class="acid-badge">NOT RUN</span>
+              </div>
+              <div id="acid-body-durability" class="acid-mini">No run yet.</div>
+              <button id="acid-run-durability" class="btn acid-run-btn">Run Test</button>
+            </article>
+          </div>
+
+          <div class="acid-all-row">
+            <button id="acid-run-all" class="btn">Run All Tests</button>
+            <button id="acid-run-failure-injection" class="btn" style="background:#7c3aed;color:#f5e9ff">Run Failure Injection</button>
+            <div id="acid-all-summary" class="muted">No combined run yet.</div>
+          </div>
+        </section>
+
+        <section id="session-section" class="card" style="display:none">
+          <div class="acid-section-head">
+            <strong>Session Monitor</strong>
+            <button id="session-refresh" class="btn acid-run-btn">Refresh</button>
+          </div>
+          <div id="session-summary" class="muted" style="margin-bottom:8px">No data loaded.</div>
+
+          <div class="card" style="margin-bottom:8px">
+            <strong>Active Sessions</strong>
+            <div id="session-active-wrap" style="margin-top:8px"></div>
+          </div>
+
+          <div class="card">
+            <strong>Recent Calls</strong>
+            <div id="session-calls-wrap" style="margin-top:8px"></div>
+          </div>
+        </section>
+
+        <section id="trace-section" class="card" style="display:none">
+          <div class="acid-section-head">
+            <strong>Query Execution Trace</strong>
+            <button id="trace-refresh" class="btn acid-run-btn">Refresh</button>
+          </div>
+          <div id="trace-summary" class="muted" style="margin-bottom:8px">No data loaded.</div>
+          <div id="trace-wrap"></div>
+        </section>
+
+        <!-- Inline JSON Query Panel (hidden until requested) -->
+        <div id="json-panel" class="json-panel card" style="display:none">
+          <div class="form-row">
+            <input id="json-collection" type="text" placeholder="Collection (default: unstructured_data)" />
+            <input id="json-limit" type="number" placeholder="Limit" min="1" value="50" style="width:90px" />
+          </div>
+          <textarea id="json-input" class="json-area" placeholder='Paste JSON query here, e.g. {"name":"Alice"}'></textarea>
+          <div class="panel-actions">
+            <button id="json-run" class="btn">Run Query</button>
+            <button id="json-preview" class="btn" style="background:#2b6b31;color:#eafff0;margin-left:8px">Preview</button>
+            <button id="json-clear" class="btn" style="background:#28404f;color:var(--muted)">Clear</button>
+            <div style="flex:1"></div>
+            <div class="muted">Paste JSON into the box and click Run</div>
+          </div>
+        </div>
+
+        <!-- Logical Query Builder Panel -->
+        <div id="logical-query-panel" class="card" style="display:none">
+          <div class="acid-section-head">
+            <strong>Logical Query Builder</strong>
+            <span class="muted">Query data as logical entities, not backends</span>
+          </div>
+
+          <div class="form-section">
+            <div class="form-row">
+              <label>Operation:</label>
+              <select id="lq-operation" style="flex:1;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:inherit">
+                <option value="read">READ</option>
+                <option value="insert">INSERT</option>
+                <option value="update">UPDATE</option>
+                <option value="delete">DELETE</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <label>Entity:</label>
+              <input id="lq-entity" type="text" placeholder="e.g., user, product, transaction" style="flex:1" />
+            </div>
+
+            <div id="lq-fields-section" style="display:none">
+              <label style="display:block;margin-bottom:8px">Fields:</label>
+              <textarea id="lq-fields" placeholder="Comma-separated fields (e.g., username, email, comments)&#10;Leave blank for all fields" style="width:100%;height:80px;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:inherit;font-family:monospace"></textarea>
+            </div>
+
+            <div id="lq-data-section" style="display:none">
+              <label style="display:block;margin-bottom:8px">Data (JSON):</label>
+              <textarea id="lq-data" placeholder='{"username":"alice","email":"alice@example.com","comments":"...","tags":["..."]}' style="width:100%;height:120px;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:inherit;font-family:monospace"></textarea>
+            </div>
+
+            <div id="lq-conditions-section" style="display:none">
+              <label style="display:block;margin-bottom:8px">Conditions (JSON array):</label>
+              <textarea id="lq-conditions" placeholder='[{"field":"username","op":"eq","value":"alice"},{"field":"age","op":"gt","value":25}]&#10;Operators: eq, gt, gte, lt, lte, in' style="width:100%;height:100px;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:inherit;font-family:monospace"></textarea>
+            </div>
+          </div>
+
+          <div class="panel-actions" style="margin-top:16px">
+            <button id="lq-execute" class="btn" style="background:#1e40af;color:#dbeafe">Execute Query</button>
+            <button id="lq-preview" class="btn" style="background:#2b6b31;color:#eafff0;margin-left:8px">Preview Request</button>
+            <button id="lq-clear" class="btn" style="background:#28404f;color:var(--muted)">Clear</button>
+            <div style="flex:1"></div>
+            <div id="lq-status" class="muted"></div>
+          </div>
+
+          <div id="lq-results" style="margin-top:16px;display:none">
+            <strong style="display:block;margin-bottom:8px">Query Results:</strong>
+            <pre id="lq-results-content" style="background:rgba(0,0,0,0.3);padding:12px;border-radius:6px;overflow-x:auto;max-height:400px"></pre>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/ui/static/app.js"></script>
+</body>
+</html>
