@@ -569,13 +569,17 @@ def _sql_count_for_username(username: str):
 
     # Fallback: reconnect and use a short-lived cursor
     try:
-        if hasattr(sql_handler, 'ensure_connection'):
-            sql_handler.ensure_connection()
-        cur = sql_handler.conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM structured_data WHERE username = %s", (username,))
-        out = cur.fetchone()
-        cur.close()
-        return int(out[0]) if out else 0
+        import threading
+        if not hasattr(sql_handler, '_fallback_lock'):
+            sql_handler._fallback_lock = threading.Lock()
+        with sql_handler._fallback_lock:
+            if hasattr(sql_handler, 'ensure_connection'):
+                sql_handler.ensure_connection()
+            cur = sql_handler.conn.cursor()
+            cur.execute("SELECT COUNT(*) FROM structured_data WHERE username = %s", (username,))
+            out = cur.fetchone()
+            cur.close()
+            return int(out[0]) if out else 0
     except Exception:
         return None
 
@@ -629,8 +633,12 @@ def txn_test(req: TxnTestRequest):
             # If conn is a SQLHandler object (fallback) use its cursor
             try:
                 if hasattr(sql_handler, 'cursor') and sql_handler.cursor:
-                    sql_handler.cursor.execute("INSERT INTO structured_data (username, timestamp, sys_ingested_at) VALUES (%s, NULL, NOW())", (username,))
-                    sql_handler.conn.commit()
+                    import threading
+                    if not hasattr(sql_handler, '_fallback_lock'):
+                        sql_handler._fallback_lock = threading.Lock()
+                    with sql_handler._fallback_lock:
+                        sql_handler.cursor.execute("INSERT INTO structured_data (username, timestamp, sys_ingested_at) VALUES (%s, NULL, NOW())", (username,))
+                        sql_handler.conn.commit()
             except Exception:
                 raise
 
@@ -640,8 +648,12 @@ def txn_test(req: TxnTestRequest):
         except Exception:
             try:
                 if hasattr(sql_handler, 'cursor') and sql_handler.cursor:
-                    sql_handler.cursor.execute("DELETE FROM structured_data WHERE username = %s", (username,))
-                    sql_handler.conn.commit()
+                    import threading
+                    if not hasattr(sql_handler, '_fallback_lock'):
+                        sql_handler._fallback_lock = threading.Lock()
+                    with sql_handler._fallback_lock:
+                        sql_handler.cursor.execute("DELETE FROM structured_data WHERE username = %s", (username,))
+                        sql_handler.conn.commit()
             except Exception:
                 pass
 
