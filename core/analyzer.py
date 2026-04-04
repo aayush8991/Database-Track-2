@@ -54,18 +54,17 @@ class Analyzer:
         for record in batch:
             self._analyze_field_stats_for_table(record, table_name)
 
-            for record in batch:
-                for key, value in record.items():
-                    if key not in self.field_stats:
-                        self.field_stats[key] = {
-                            "count": 0,
-                            "types": set(),  
-                            "is_nested": False,
-                            "unique_values": set(),
-                            "base_unique_count": 0,
-                            "_unique_capped": False,
-                            "db": None
-                        }
+    def _analyze_field_stats(self, record):
+        """Analyze field statistics for a record (global)."""
+        for key, value in record.items():
+            if key not in self.field_stats:
+                self.field_stats[key] = {
+                    "count": 0,
+                    "types": set(),
+                    "is_nested": False,
+                    "unique_values_set": set(),
+                    "sample_values": [],
+                }
 
             self.field_stats[key]["count"] += 1
             self.field_stats[key]["types"].add(type(value).__name__)
@@ -280,9 +279,13 @@ class Analyzer:
         """
         with self.lock:
             self.field_stats = {}
+            data_stats = loaded_data.get("field_stats", {})
             for key, stats in data_stats.items():
                 self.field_stats[key] = stats
-                stats["types"] = set(stats["types"])
+                stats["types"] = set(stats.get("types", []))
+                stats["unique_values_set"] = set()  # Rebuild temporary set
+                if "sample_values" not in stats:
+                    stats["sample_values"] = []
                 
                 is_capped = stats.get("_unique_capped", False)
                 restored_set = set(stats.get("unique_values", []))
