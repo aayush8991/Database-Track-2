@@ -153,31 +153,19 @@
             <div class="form-row">
               <label>Operation:</label>
               <select id="lq-operation" style="flex:1;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:inherit">
-                <option value="read">READ</option>
                 <option value="insert">INSERT</option>
+                <option value="read">READ</option>
                 <option value="update">UPDATE</option>
                 <option value="delete">DELETE</option>
               </select>
             </div>
 
-            <div class="form-row">
-              <label>Entity:</label>
-              <input id="lq-entity" type="text" placeholder="e.g., user, product, transaction" style="flex:1" />
-            </div>
-
-            <div id="lq-fields-section" style="display:none">
-              <label style="display:block;margin-bottom:8px">Fields:</label>
-              <textarea id="lq-fields" placeholder="Comma-separated fields (e.g., username, email, comments)&#10;Leave blank for all fields" style="width:100%;height:80px;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:inherit;font-family:monospace"></textarea>
-            </div>
-
-            <div id="lq-data-section" style="display:none">
-              <label style="display:block;margin-bottom:8px">Data (JSON):</label>
-              <textarea id="lq-data" placeholder='{"username":"alice","email":"alice@example.com","comments":"...","tags":["..."]}' style="width:100%;height:120px;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:inherit;font-family:monospace"></textarea>
-            </div>
-
-            <div id="lq-conditions-section" style="display:none">
-              <label style="display:block;margin-bottom:8px">Conditions (JSON array):</label>
-              <textarea id="lq-conditions" placeholder='[{"field":"username","op":"eq","value":"alice"},{"field":"age","op":"gt","value":25}]&#10;Operators: eq, gt, gte, lt, lte, in' style="width:100%;height:100px;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:inherit;font-family:monospace"></textarea>
+            <div id="lq-json-section">
+              <label id="lq-filter-label" style="display:block;margin-bottom:8px;margin-top:16px">Filter (JSON):</label>
+              <textarea id="lq-filter" placeholder='{"username": "alice"}' style="width:100%;height:80px;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:inherit;font-family:monospace"></textarea>
+              
+              <label id="lq-data-label" style="display:block;margin-bottom:8px;margin-top:16px">Data (JSON):</label>
+              <textarea id="lq-data" placeholder='{"age": 29}' style="width:100%;height:80px;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:inherit;font-family:monospace"></textarea>
             </div>
           </div>
 

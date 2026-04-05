@@ -25,6 +25,7 @@ from collections import deque
 from datetime import datetime, timezone
 import io
 import csv
+from core.crud_engine import CRUDEngine
 
 load_dotenv()
 
@@ -80,6 +81,12 @@ class TxnTestRequest(BaseModel):
 sql_handler = SQLHandler()
 mongo_handler = MongoHandler()
 tc = TransactionCoordinator(sql_handler, mongo_handler)
+metadata_manager = MetadataManager()
+try:
+    crud_engine = CRUDEngine(sql_handler, mongo_handler, metadata_manager)
+except Exception:
+    crud_engine = None
+
 # WAL manager for persistent transaction logging and recovery
 try:
     wal = WALManager(sql_handler)
@@ -1217,6 +1224,25 @@ class LogicalQuery(BaseModel):
     order: str | None = 'asc'
     data: Dict[str, Any] | None = None
 
+
+@app.post('/query-crud')
+def post_query_crud(req: Dict[str, Any], request: Request):
+    username = 'anonymous'
+    try:
+        user = _get_user_from_request(request)
+        username = user.get('username', 'anonymous')
+    except HTTPException:
+        pass
+    rate_limit(request)
+    
+    if not crud_engine:
+        raise HTTPException(status_code=500, detail="CRUD Engine not initialized")
+        
+    try:
+        result = crud_engine.handle_request(req)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.post('/query')
 def post_query(req: LogicalQuery, request: Request):
