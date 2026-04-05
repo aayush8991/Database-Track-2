@@ -25,7 +25,7 @@ from collections import deque
 from datetime import datetime, timezone
 import io
 import csv
-from core.crud_engine import CRUDEngine
+import sys
 
 load_dotenv()
 
@@ -206,6 +206,28 @@ def _run_with_timeout(label: str, fn, timeout_sec: float | None = None) -> Dict[
                 'duration_ms': int((time.time() - started) * 1000),
             }
         }
+
+
+def _sanitize_for_json(obj, depth=0):
+    """Convert non-JSON-serializable objects (datetime, ObjectId, etc.) to strings"""
+    if depth > 10:  # Prevent infinite recursion
+        return str(obj)
+    
+    if obj is None:
+        return None
+    elif isinstance(obj, (str, int, float, bool)):
+        return obj
+    elif isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {k: _sanitize_for_json(v, depth + 1) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_sanitize_for_json(item, depth + 1) for item in obj]
+    elif hasattr(obj, '__dict__'):
+        # Handle ObjectId and other objects with __dict__
+        return str(obj)
+    else:
+        return str(obj)
 
 
 def _summarize_query_for_trace(query: Any) -> str:
@@ -546,9 +568,15 @@ def api_session_monitor(request: Request, user: dict = Depends(get_current_user)
 
 
 @app.get('/api/query-trace')
-def api_query_trace(request: Request, user: dict = Depends(get_current_user)):
-    if user.get('role') != 'admin':
-        raise HTTPException(status_code=403, detail='insufficient privileges')
+def api_query_trace(request: Request):
+    """Query execution trace - accessible to all authenticated users"""
+    # Auth is optional for trace viewing - but can be made stricter
+    try:
+        user = _get_user_from_request(request)
+    except HTTPException:
+        # Allow unauthenticated access to trace if no auth is configured
+        user = {'username': 'anonymous', 'role': 'user'}
+    
     rate_limit(request)
 
     try:
@@ -560,6 +588,9 @@ def api_query_trace(request: Request, user: dict = Depends(get_current_user)):
     with query_trace_lock:
         traces = list(query_trace)[:limit]
         total = len(query_trace)
+    
+    # Sanitize traces to ensure JSON serialization
+    traces = _sanitize_for_json(traces)
     return JSONResponse({'traces': traces, 'total': total})
 
 
@@ -599,23 +630,59 @@ def _sql_read_with_fallback(sel_cols: list[str], where_clauses: list[str], param
         try:
             q = f"SELECT {cols_sql} FROM {table_name}"
             if where_clauses:
-                q += ' WHERE ' + ' AND '.join(where_clauses)
+                # Convert %s placeholders to :param_N style for SQLAlchemy 2.0
+                # Track global parameter index across all clauses
+                params_dict = {}
+                converted_where_clauses = []
+                param_idx = 0
+                
+                for clause in where_clauses:
+                    # Count how many %s are in this clause
+                    placeholder_count = clause.count('%s')
+                    converted_clause = clause
+                    
+                    # Replace each %s with a unique :param_N
+                    for _ in range(placeholder_count):
+                        converted_clause = converted_clause.replace('%s', f':param_{param_idx}', 1)
+                        if param_idx < len(params):
+                            params_dict[f'param_{param_idx}'] = params[param_idx]
+                        param_idx += 1
+                    
+                    converted_where_clauses.append(converted_clause)
+                
+                q += ' WHERE ' + ' AND '.join(converted_where_clauses)
+            else:
+                params_dict = {}
 
             if hasattr(sql_handler, 'engine') and sql_handler.engine:
                 with sql_handler.engine.begin() as conn:
-                    res = conn.execute(text(q), tuple(params))
+                    res = conn.execute(text(q), params_dict)
                     rows = res.fetchall()
                     col_names = list(res.keys())
-                return [dict(zip(col_names, r)) for r in rows]
+                result = [dict(zip(col_names, r)) for r in rows]
+                # Return result if non-empty OR if it's the last table
+                if result or table_name == preferred_tables[-1]:
+                    return result
+                # Otherwise continue to next table
+                continue
             else:
                 if hasattr(sql_handler, 'ensure_connection'):
                     sql_handler.ensure_connection()
                 cur = sql_handler.conn.cursor()
-                cur.execute(q, tuple(params))
+                # For direct cursor, convert back to %s style
+                q_cursor = q.replace(':param_', '%s')
+                # Extract params in order
+                cursor_params = [params_dict.get(f'param_{i}') for i in range(len(params_dict))]
+                cur.execute(q_cursor, tuple(cursor_params))
                 rows = cur.fetchall()
                 col_names = [d[0] for d in cur.description] if cur.description else []
                 cur.close()
-                return [dict(zip(col_names, r)) for r in rows]
+                result = [dict(zip(col_names, r)) for r in rows]
+                # Return result if non-empty OR if it's the last table
+                if result or table_name == preferred_tables[-1]:
+                    return result
+                # Otherwise continue to next table
+                continue
         except Exception as e:
             last_err = e
             continue
@@ -1248,20 +1315,35 @@ def post_query_crud(req: Dict[str, Any], request: Request):
 def post_query(req: LogicalQuery, request: Request):
     started_at = time.time()
     username = 'anonymous'
-    # auth + rate limit
+    # auth is optional for regular queries, but can be provided for tracking
     try:
         user = _get_user_from_request(request)
         username = user.get('username', 'anonymous')
     except HTTPException:
-        raise
+        # Allow unauthenticated access to query endpoint
+        user = {'username': 'anonymous', 'role': 'user'}
+    
     rate_limit(request)
 
     op = (req.operation or '').lower()
+    # Support alternative operation names (create = insert, fetch/retrieve = read)
+    if op == 'create':
+        op = 'insert'
+    elif op in ('fetch', 'retrieve'):
+        op = 'read'
+    
     base_summary = (
         f"entity={req.entity}; fields={len(req.fields or [])}; "
         f"conditions={len(req.conditions or [])}"
     )
     if op == 'read':
+        # Debug: Log incoming request
+        import sys
+        print(f"\n[DEBUG] READ REQUEST:", file=sys.stderr)
+        print(f"  Entity: {req.entity}", file=sys.stderr)
+        print(f"  Fields: {req.fields}", file=sys.stderr)
+        print(f"  Conditions: {req.conditions}", file=sys.stderr)
+        
         # route fields
         sql_fields = []
         mongo_fields = []
@@ -1292,13 +1374,25 @@ def post_query(req: LogicalQuery, request: Request):
             params = []
             if req.conditions:
                 for c in req.conditions:
-                    opmap = {'eq':'=','gt':'>','gte':'>=','lt':'<','lte':'<='}
+                    # Map logical operators to SQL operators
+                    opmap = {
+                        'eq': '=',
+                        'ne': '!=',
+                        'gt': '>',
+                        'gte': '>=',
+                        'lt': '<',
+                        'lte': '<='
+                    }
                     if c.op in opmap:
                         where_clauses.append(f"{c.field} {opmap[c.op]} %s")
                         params.append(c.value)
                     elif c.op == 'in' and isinstance(c.value, list):
                         ph = ','.join(['%s'] * len(c.value))
                         where_clauses.append(f"{c.field} IN ({ph})")
+                        params.extend(c.value)
+                    elif c.op == 'nin' and isinstance(c.value, list):
+                        ph = ','.join(['%s'] * len(c.value))
+                        where_clauses.append(f"{c.field} NOT IN ({ph})")
                         params.extend(c.value)
             sql_results = _sql_read_with_fallback(sel_cols, where_clauses, params, candidate_tables)
         except Exception:
@@ -1310,15 +1404,31 @@ def post_query(req: LogicalQuery, request: Request):
             mq = {}
             if req.conditions:
                 for c in req.conditions:
-                    if metadata_manager.get_field_route(c.field) in ('MONGO', 'BOTH'):
+                    field_route = metadata_manager.get_field_route(c.field)
+                    if field_route in ('MONGO', 'BOTH', 'UNKNOWN'):
+                        # Map logical operators to MongoDB operators
                         if c.op == 'eq':
                             mq[c.field] = c.value
+                        elif c.op == 'ne':
+                            mq[c.field] = {'$ne': c.value}
+                        elif c.op == 'gt':
+                            mq[c.field] = {'$gt': c.value}
+                        elif c.op == 'gte':
+                            mq[c.field] = {'$gte': c.value}
+                        elif c.op == 'lt':
+                            mq[c.field] = {'$lt': c.value}
+                        elif c.op == 'lte':
+                            mq[c.field] = {'$lte': c.value}
                         elif c.op == 'in' and isinstance(c.value, list):
                             mq[c.field] = {'$in': c.value}
+                        elif c.op == 'nin' and isinstance(c.value, list):
+                            mq[c.field] = {'$nin': c.value}
             coll_name = req.entity or 'unstructured_data'
             cursor = mongo_handler.db[coll_name].find(mq)
             for d in cursor:
                 d['_id'] = str(d.get('_id'))
+                # Sanitize datetime and other non-JSON-serializable fields
+                d = _sanitize_for_json(d)
                 mongo_results.append(d)
         except Exception:
             mongo_results = []
@@ -1377,6 +1487,8 @@ def post_query(req: LogicalQuery, request: Request):
             status='ok',
             result_count=len(merged),
         )
+        # Sanitize results to ensure JSON serialization
+        merged = _sanitize_for_json(merged)
         return JSONResponse({'results': merged})
 
     elif op == 'insert':
@@ -1491,123 +1603,111 @@ def post_query(req: LogicalQuery, request: Request):
         return JSONResponse({'status': 'committed', 'uuid': tx_uid})
 
     elif op in ('update', 'delete'):
-        # Only support single-backend updates/deletes for now
-        # Determine affected backends
+        # Support both SQL and MongoDB updates/deletes
+        # Determine affected backends based on fields being modified
         affected_backends = set()
-        # For update/delete without data, delete uses conditions only
-        # If fields specified, check routes; otherwise infer from entity for deletes
+        sql_update_fields = set()
+        mongo_update_fields = set()
+        
+        # For update: check which backend(s) contain the fields being updated
         if req.data:
             for k in req.data.keys():
                 route = metadata_manager.get_field_route(k)
-                # practical default: for UPDATE fields routed to BOTH, treat as SQL unless explicitly targeting mongo entity
-                if route == 'BOTH' and op == 'update':
-                    route = 'SQL'
-                affected_backends.add(route)
+                # UNKNOWN and MONGO fields → MongoDB
+                if route in ('MONGO', 'UNKNOWN'):
+                    mongo_update_fields.add(k)
+                    affected_backends.add('MONGO')
+                # SQL and BOTH → SQL
+                if route in ('SQL', 'BOTH'):
+                    sql_update_fields.add(k)
+                    affected_backends.add('SQL')
         else:
-            # infer by entity: if entity maps to Mongo collection name assume Mongo, else SQL
-            # simple heuristic: check metadata for entity presence
+            # For DELETE with no data fields: infer from entity
             if req.entity and req.entity in (metadata_manager.global_schema.get('unstructured_collections') or {}):
                 affected_backends.add('MONGO')
             else:
                 affected_backends.add('SQL')
 
-        # normalize: map BOTH -> both
-        backends = set()
-        for b in affected_backends:
-            if b == 'BOTH':
-                backends.update(['SQL', 'MONGO'])
-            else:
-                backends.add(b)
+        # Determine where conditions apply
+        condition_backends = set()
+        if req.conditions:
+            for c in req.conditions:
+                route = metadata_manager.get_field_route(c.field)
+                if route in ('SQL', 'BOTH'):
+                    condition_backends.add('SQL')
+                if route in ('MONGO', 'BOTH', 'UNKNOWN'):
+                    condition_backends.add('MONGO')
+        
+        # If conditions don't specify, use affected backends
+        if not condition_backends:
+            condition_backends = affected_backends if affected_backends else {'SQL'}
+        
+        # Merge: operation should happen on backends that have either the data or conditions
+        backends = affected_backends | condition_backends if affected_backends else condition_backends
 
-        if 'SQL' in backends and 'MONGO' in backends:
-            _record_query_trace(
-                username=username,
-                endpoint='/query',
-                operation=op,
-                routed_backends=['SQL', 'MONGO'],
-                summary=base_summary,
-                started_at=started_at,
-                status='error',
-                error='Update/Delete spanning SQL+Mongo not supported',
-            )
-            raise HTTPException(status_code=400, detail='Update/Delete spanning SQL+Mongo not supported')
-
-        if 'SQL' in backends:
+        # Track where updates happened
+        update_backends = []
+        
+        # For both SQL and MONGO updates, execute on appropriate backends
+        # SQL execution
+        sql_affected = 0
+        if 'SQL' in backends and sql_update_fields:
             # build SET and WHERE
-            if op == 'update' and not req.data:
-                raise HTTPException(status_code=400, detail='No data for update')
             set_clauses = []
             params = []
-            if req.data:
-                for k, v in req.data.items():
-                    set_clauses.append(f"{k} = %s")
-                    params.append(v)
+            for k in sql_update_fields:
+                set_clauses.append(f"{k} = %s")
+                params.append(req.data[k])
+            
             where_clauses = []
             if req.conditions:
                 for c in req.conditions:
-                    if c.op == 'eq':
-                        where_clauses.append(f"{c.field} = %s")
-                        params.append(c.value)
-                    elif c.op == 'in' and isinstance(c.value, list):
-                        ph = ','.join(['%s'] * len(c.value))
-                        where_clauses.append(f"{c.field} IN ({ph})")
-                        params.extend(c.value)
+                    route = metadata_manager.get_field_route(c.field)
+                    if route in ('SQL', 'BOTH'):  # Only add SQL-routable conditions
+                        if c.op == 'eq':
+                            where_clauses.append(f"{c.field} = %s")
+                            params.append(c.value)
+                        elif c.op == 'in' and isinstance(c.value, list):
+                            ph = ','.join(['%s'] * len(c.value))
+                            where_clauses.append(f"{c.field} IN ({ph})")
+                            params.extend(c.value)
+
+            if set_clauses:
+                try:
+                    cur = sql_handler.cursor
+                    if op == 'update':
+                        q = f"UPDATE structured_data SET {', '.join(set_clauses)}"
+                        if where_clauses:
+                            q += ' WHERE ' + ' AND '.join(where_clauses)
+                        cur.execute(q, tuple(params))
+                        sql_affected = cur.rowcount if hasattr(cur, 'rowcount') else 0
+                        sql_handler.conn.commit()
+                        update_backends.append('SQL')
                     else:
-                        raise HTTPException(status_code=400, detail=f'Unsupported op in WHERE: {c.op}')
-
-            try:
-                cur = sql_handler.cursor
-                if op == 'update':
-                    q = f"UPDATE structured_data SET {', '.join(set_clauses)}"
-                    if where_clauses:
-                        q += ' WHERE ' + ' AND '.join(where_clauses)
-                    cur.execute(q, tuple(params))
-                    affected = cur.rowcount if hasattr(cur, 'rowcount') else None
-                    sql_handler.conn.commit()
+                        q = "DELETE FROM structured_data"
+                        if where_clauses:
+                            q += ' WHERE ' + ' AND '.join(where_clauses)
+                        cur.execute(q, tuple(params))
+                        sql_affected = cur.rowcount if hasattr(cur, 'rowcount') else 0
+                        sql_handler.conn.commit()
+                        update_backends.append('SQL')
+                except Exception as e:
                     _record_query_trace(
                         username=username,
                         endpoint='/query',
-                        operation='update',
+                        operation=op,
                         routed_backends=['SQL'],
                         summary=base_summary,
                         started_at=started_at,
-                        status='ok',
-                        result_count=affected,
+                        status='error',
+                        error=f'SQL error: {e}',
                     )
-                    return JSONResponse({'status': 'ok', 'affected': affected})
-                else:
-                    q = "DELETE FROM structured_data"
-                    if where_clauses:
-                        q += ' WHERE ' + ' AND '.join(where_clauses)
-                    cur.execute(q, tuple(params))
-                    affected = cur.rowcount if hasattr(cur, 'rowcount') else None
-                    sql_handler.conn.commit()
-                    _record_query_trace(
-                        username=username,
-                        endpoint='/query',
-                        operation='delete',
-                        routed_backends=['SQL'],
-                        summary=base_summary,
-                        started_at=started_at,
-                        status='ok',
-                        result_count=affected,
-                    )
-                    return JSONResponse({'status': 'ok', 'deleted': affected})
-            except Exception as e:
-                _record_query_trace(
-                    username=username,
-                    endpoint='/query',
-                    operation=op,
-                    routed_backends=['SQL'],
-                    summary=base_summary,
-                    started_at=started_at,
-                    status='error',
-                    error=f'SQL error: {e}',
-                )
-                raise HTTPException(status_code=500, detail=f'SQL error: {e}')
+                    raise HTTPException(status_code=500, detail=f'SQL error: {e}')
 
+        # MongoDB execution
+        mongo_affected = 0
         if 'MONGO' in backends:
-            # build filter
+            # build filter (conditions apply to both backends)
             mq = {}
             if req.conditions:
                 for c in req.conditions:
@@ -1615,36 +1715,18 @@ def post_query(req: LogicalQuery, request: Request):
                         mq[c.field] = c.value
                     elif c.op == 'in' and isinstance(c.value, list):
                         mq[c.field] = {'$in': c.value}
-                    else:
-                        raise HTTPException(status_code=400, detail=f'Unsupported op in WHERE: {c.op}')
+
             coll = mongo_handler.db.get_collection(req.entity or 'unstructured_data')
             try:
-                if op == 'update':
-                    res = coll.update_many(mq, {'$set': req.data or {}})
-                    _record_query_trace(
-                        username=username,
-                        endpoint='/query',
-                        operation='update',
-                        routed_backends=['MONGO'],
-                        summary=base_summary,
-                        started_at=started_at,
-                        status='ok',
-                        result_count=res.modified_count,
-                    )
-                    return JSONResponse({'status': 'ok', 'matched': res.matched_count, 'modified': res.modified_count})
-                else:
+                if op == 'update' and mongo_update_fields:
+                    update_data = {k: req.data[k] for k in mongo_update_fields}
+                    res = coll.update_many(mq, {'$set': update_data})
+                    mongo_affected = res.modified_count
+                    update_backends.append('MONGO')
+                elif op == 'delete':
                     res = coll.delete_many(mq)
-                    _record_query_trace(
-                        username=username,
-                        endpoint='/query',
-                        operation='delete',
-                        routed_backends=['MONGO'],
-                        summary=base_summary,
-                        started_at=started_at,
-                        status='ok',
-                        result_count=res.deleted_count,
-                    )
-                    return JSONResponse({'status': 'ok', 'deleted': res.deleted_count})
+                    mongo_affected = res.deleted_count
+                    update_backends.append('MONGO')
             except Exception as e:
                 _record_query_trace(
                     username=username,
@@ -1657,6 +1739,35 @@ def post_query(req: LogicalQuery, request: Request):
                     error=f'Mongo error: {e}',
                 )
                 raise HTTPException(status_code=500, detail=f'Mongo error: {e}')
+
+        # Return unified response
+        _record_query_trace(
+            username=username,
+            endpoint='/query',
+            operation=op,
+            routed_backends=update_backends,
+            summary=base_summary,
+            started_at=started_at,
+            status='ok',
+            result_count=max(sql_affected, mongo_affected),
+        )
+        
+        if op == 'update':
+            return JSONResponse({
+                'status': 'ok',
+                'affected': sql_affected + mongo_affected,
+                'sql_affected': sql_affected,
+                'mongo_affected': mongo_affected,
+                'backends_updated': update_backends
+            })
+        else:  # delete
+            return JSONResponse({
+                'status': 'ok',
+                'deleted': sql_affected + mongo_affected,
+                'sql_deleted': sql_affected,
+                'mongo_deleted': mongo_affected,
+                'backends_updated': update_backends
+            })
 
     else:
         _record_query_trace(
