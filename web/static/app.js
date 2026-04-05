@@ -575,7 +575,7 @@ async function executeLogicalQuery(){
   const resultsContent = document.getElementById('lq-results-content');
   
   if(!entity){
-    if(status) status.textContent = 'Error: Entity name is required';
+    if(status) status.textContent = '❌ Error: Entity name is required';
     return;
   }
   
@@ -599,7 +599,7 @@ async function executeLogicalQuery(){
       try{
         payload.data = JSON.parse(dataText);
       }catch(e){
-        if(status) status.textContent = `Error parsing data JSON: ${e.message}`;
+        if(status) status.textContent = `❌ Error parsing data JSON: ${e.message}`;
         return;
       }
     }
@@ -612,32 +612,64 @@ async function executeLogicalQuery(){
       try{
         payload.conditions = JSON.parse(condText);
       }catch(e){
-        if(status) status.textContent = `Error parsing conditions JSON: ${e.message}`;
+        if(status) status.textContent = `❌ Error parsing conditions JSON: ${e.message}`;
         return;
       }
     }
   }
   
-  if(status) status.textContent = 'Executing...';
+  if(status) status.innerHTML = '⏳ Executing query...';
   
+  const startTime = performance.now();
   const result = await callApi('/query', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    timeoutMs: 30000
   });
+  const elapsed = (performance.now() - startTime).toFixed(2);
   
-  if(status) status.textContent = `Completed (${result._http_status || 'unknown'})`;
+  // Check for errors
+  if(result.error || (result._http_status && result._http_status >= 400)){
+    if(status) {
+      status.innerHTML = `❌ Error (${result._http_status || 'unknown'}): ${result.detail || result.error || 'Unknown error'}`;
+    }
+    if(resultsDiv) resultsDiv.style.display = 'block';
+    if(resultsContent) resultsContent.textContent = JSON.stringify(result, null, 2);
+    return;
+  }
+  
+  // Success
+  if(status) {
+    status.innerHTML = `✅ Completed in ${elapsed}ms (HTTP ${result._http_status || 200})`;
+  }
   
   // Format results based on operation
   if(resultsDiv) resultsDiv.style.display = 'block';
   
   if(operation === 'read' && result.results && Array.isArray(result.results)){
     // Display as formatted table for READ operations
-    const html = formatResultsAsTable(result.results);
+    const resultCount = result.results.length;
+    const html = `<div style="margin-bottom:12px;font-size:0.9em;color:rgba(255,255,255,0.6)">
+      Found ${resultCount} record${resultCount !== 1 ? 's' : ''}
+    </div>` + formatResultsAsTable(result.results);
     if(resultsContent) resultsContent.innerHTML = html;
   } else {
     // Display as JSON for other operations
-    if(resultsContent) resultsContent.textContent = JSON.stringify(result, null, 2);
+    let detail = 'Operation completed';
+    if(result.status === 'ok') detail = `✅ ${operation.toUpperCase()} successful`;
+    if(result.status === 'committed') detail = `✅ ${operation.toUpperCase()} committed (ID: ${result.uuid || 'N/A'})`;
+    if(result.affected !== undefined) detail += ` - ${result.affected} rows affected`;
+    if(result.deleted !== undefined) detail += ` - ${result.deleted} records deleted`;
+    if(result.modified !== undefined) detail += ` - ${result.modified} records modified`;
+    
+    const summary = `<div style="margin-bottom:12px;padding:12px;background:rgba(76,175,80,0.15);border-left:3px solid #4CAF50;border-radius:4px">
+      <strong>${detail}</strong>
+    </div>`;
+    
+    if(resultsContent) {
+      resultsContent.innerHTML = summary + '<pre style="margin:0">' + escapeHtml(JSON.stringify(result, null, 2)) + '</pre>';
+    }
   }
 }
 
