@@ -1,8 +1,11 @@
 # Adaptive Ingestion System 
 
-> **Course Project:** CS 432 Databases (Assignment 1)  
-> **Topic:** Adaptive Ingestion & Hybrid Backend Placement
-> **Assingment-2 Video Link:** https://youtu.be/1UnupiQ_ETQ
+Course Project:CS 432 Databases (Track 2)  
+Topic: Adaptive Ingestion & Hybrid Backend Placement
+
+Assingment-2 Video Link: https://youtu.be/1UnupiQ_ETQ
+
+Assignment 3 Video : https://youtu.be/6PW05NOmvnU
 
 ##  Overview
 This project implements an **autonomous data ingestion engine** that dynamically routes incoming JSON records to the optimal storage backend (**MySQL** or **MongoDB**) based on data characteristics.
@@ -347,3 +350,12 @@ pytest tests/test_normalizer.py -v         # Test data normalization
 pytest tests/test_metadata_manager.py -v   # Test metadata management
 pytest tests/test_integration.py -v        # Test end-to-end flows
 ```
+
+## Interactive Dashboard
+
+Run the command :
+```bash
+python3 setup_dashboard.py
+```
+
+This programme will guide to open the interactive dashboard. All ACID tests can be run from the dashboard along with CRUD queries.
