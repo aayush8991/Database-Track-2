@@ -557,64 +557,54 @@ function openLogicalQueryPanel(){
 
 function updateLogicalQuerySections(){
   const op = (document.getElementById('lq-operation')?.value || '').toLowerCase();
-  const fieldsSection = document.getElementById('lq-fields-section');
-  const dataSection = document.getElementById('lq-data-section');
-  const conditionsSection = document.getElementById('lq-conditions-section');
-  
-  // Show/hide sections based on operation
-  if(fieldsSection) fieldsSection.style.display = (op === 'read') ? 'block' : 'none';
-  if(dataSection) dataSection.style.display = (op === 'insert' || op === 'update') ? 'block' : 'none';
-  if(conditionsSection) conditionsSection.style.display = (op !== 'insert') ? 'block' : 'none';
+  const filterLabel = document.getElementById('lq-filter-label');
+  const filterText = document.getElementById('lq-filter');
+  const dataLabel = document.getElementById('lq-data-label');
+  const dataText = document.getElementById('lq-data');
+
+  if(op === 'insert') {
+    if(filterLabel) filterLabel.style.display = 'none';
+    if(filterText) filterText.style.display = 'none';
+    if(dataLabel) dataLabel.style.display = 'block';
+    if(dataText) dataText.style.display = 'block';
+  } else if(op === 'read' || op === 'delete') {
+    if(filterLabel) filterLabel.style.display = 'block';
+    if(filterText) filterText.style.display = 'block';
+    if(dataLabel) dataLabel.style.display = 'none';
+    if(dataText) dataText.style.display = 'none';
+  } else if(op === 'update') {
+    if(filterLabel) filterLabel.style.display = 'block';
+    if(filterText) filterText.style.display = 'block';
+    if(dataLabel) dataLabel.style.display = 'block';
+    if(dataText) dataText.style.display = 'block';
+  }
 }
 
 async function executeLogicalQuery(){
   const operation = (document.getElementById('lq-operation')?.value || 'read').toLowerCase();
-  const entity = document.getElementById('lq-entity')?.value?.trim();
   const status = document.getElementById('lq-status');
   const resultsDiv = document.getElementById('lq-results');
   const resultsContent = document.getElementById('lq-results-content');
   
-  if(!entity){
-    if(status) status.textContent = '❌ Error: Entity name is required';
-    return;
-  }
+  let payload = { operation };
   
-  const payload = {
-    operation: operation,
-    entity: entity
-  };
-  
-  // Parse fields (for READ)
-  if(operation === 'read'){
-    const fieldsText = document.getElementById('lq-fields')?.value?.trim();
-    if(fieldsText){
-      payload.fields = fieldsText.split(',').map(f => f.trim()).filter(f => f);
+  const filterText = document.getElementById('lq-filter')?.value?.trim();
+  if (filterText && (operation === 'read' || operation === 'delete' || operation === 'update')) {
+    try {
+      payload.filter = JSON.parse(filterText);
+    } catch(e) {
+      if(status) status.textContent = `Error parsing filter JSON: ${e.message}`;
+      return;
     }
   }
-  
-  // Parse data (for INSERT/UPDATE)
-  if(operation === 'insert' || operation === 'update'){
-    const dataText = document.getElementById('lq-data')?.value?.trim();
-    if(dataText){
-      try{
-        payload.data = JSON.parse(dataText);
-      }catch(e){
-        if(status) status.textContent = `❌ Error parsing data JSON: ${e.message}`;
-        return;
-      }
-    }
-  }
-  
-  // Parse conditions (for READ/UPDATE/DELETE)
-  if(operation !== 'insert'){
-    const condText = document.getElementById('lq-conditions')?.value?.trim();
-    if(condText){
-      try{
-        payload.conditions = JSON.parse(condText);
-      }catch(e){
-        if(status) status.textContent = `❌ Error parsing conditions JSON: ${e.message}`;
-        return;
-      }
+
+  const dataText = document.getElementById('lq-data')?.value?.trim();
+  if (dataText && (operation === 'insert' || operation === 'update')) {
+    try {
+      payload.data = JSON.parse(dataText);
+    } catch(e) {
+      if(status) status.textContent = `Error parsing data JSON: ${e.message}`;
+      return;
     }
   }
   
@@ -644,7 +634,7 @@ async function executeLogicalQuery(){
     status.innerHTML = `✅ Completed in ${elapsed}ms (HTTP ${result._http_status || 200})`;
   }
   
-  // Format results based on operation
+  // Format results
   if(resultsDiv) resultsDiv.style.display = 'block';
   
   if(operation === 'read' && result.results && Array.isArray(result.results)){
@@ -733,49 +723,26 @@ function escapeHtml(text){
 
 function previewLogicalQuery(){
   const operation = (document.getElementById('lq-operation')?.value || 'read').toLowerCase();
-  const entity = document.getElementById('lq-entity')?.value?.trim();
   
-  if(!entity){
-    alert('Entity name is required');
-    return;
-  }
-  
-  const payload = {
-    operation: operation,
-    entity: entity
-  };
-  
-  // Parse fields (for READ)
-  if(operation === 'read'){
-    const fieldsText = document.getElementById('lq-fields')?.value?.trim();
-    if(fieldsText){
-      payload.fields = fieldsText.split(',').map(f => f.trim()).filter(f => f);
+  let payload = { operation };
+
+  const filterText = document.getElementById('lq-filter')?.value?.trim();
+  if (filterText && (operation === 'read' || operation === 'delete' || operation === 'update')) {
+    try {
+      payload.filter = JSON.parse(filterText);
+    } catch(e) {
+      alert(`Error parsing filter JSON: ${e.message}`);
+      return;
     }
   }
-  
-  // Parse data (for INSERT/UPDATE)
-  if(operation === 'insert' || operation === 'update'){
-    const dataText = document.getElementById('lq-data')?.value?.trim();
-    if(dataText){
-      try{
-        payload.data = JSON.parse(dataText);
-      }catch(e){
-        alert(`Error parsing data JSON: ${e.message}`);
-        return;
-      }
-    }
-  }
-  
-  // Parse conditions (for READ/UPDATE/DELETE)
-  if(operation !== 'insert'){
-    const condText = document.getElementById('lq-conditions')?.value?.trim();
-    if(condText){
-      try{
-        payload.conditions = JSON.parse(condText);
-      }catch(e){
-        alert(`Error parsing conditions JSON: ${e.message}`);
-        return;
-      }
+
+  const dataText = document.getElementById('lq-data')?.value?.trim();
+  if (dataText && (operation === 'insert' || operation === 'update')) {
+    try {
+      payload.data = JSON.parse(dataText);
+    } catch(e) {
+      alert(`Error parsing data JSON: ${e.message}`);
+      return;
     }
   }
   
@@ -799,10 +766,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   
   const clearBtn = document.getElementById('lq-clear');
   if(clearBtn) clearBtn.addEventListener('click', ()=>{
-    document.getElementById('lq-entity').value = '';
-    document.getElementById('lq-fields').value = '';
+    document.getElementById('lq-filter').value = '';
     document.getElementById('lq-data').value = '';
-    document.getElementById('lq-conditions').value = '';
     document.getElementById('lq-results').style.display = 'none';
     document.getElementById('lq-status').textContent = '';
   });
