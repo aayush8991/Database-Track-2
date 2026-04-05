@@ -1467,15 +1467,23 @@ def post_query(req: LogicalQuery, request: Request):
                 error='No data to insert',
             )
             raise HTTPException(status_code=400, detail='No data to insert')
+        
+        # AUTO-ROUTE: Intelligently determine which backends to store data in
+        # Strategy: Store data to ALL backends where each field is supported
+        # This prevents silent data loss - all data goes everywhere it can go
         sql_data = {}
         mongo_data = {}
         for k, v in req.data.items():
             r = metadata_manager.get_field_route(k)
+            # Route to SQL if field is SQL or BOTH
             if r in ('SQL', 'BOTH'):
                 sql_data[k] = v
+            # Route to MongoDB if field is MONGO or BOTH
             if r in ('MONGO', 'BOTH'):
                 mongo_data[k] = v
-
+        
+        # Ignore req.entity for INSERT - auto-route to all applicable backends
+        # This ensures no data is lost regardless of which entity user specified
         import uuid as _uuid
         tx_uid = str(_uuid.uuid4())
 
@@ -2102,6 +2110,63 @@ async def api_json_query(request: Request):
             error=str(e),
         )
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/schema/fields")
+def api_schema_fields():
+    """Get field routing information to help users understand metadata"""
+    field_routing = metadata_manager.global_schema.get('field_routing', {})
+    
+    result = {
+        'fields': {},
+        'note': 'Use this to understand which fields go to which backends'
+    }
+    
+    for field_name, routing_info in field_routing.items():
+        target = routing_info.get('target', 'UNKNOWN')
+        
+        # Build description
+        if target == 'SQL':
+            desc = "Stored in SQL database only - not available in MongoDB"
+        elif target == 'MONGO':
+            desc = "Stored in MongoDB only - not available in SQL"
+        elif target == 'BOTH':
+            desc = "Stored in both SQL and MongoDB"
+        else:
+            desc = "Routing unknown"
+        
+        result['fields'][field_name] = {
+            'target': target,
+            'description': desc,
+            'sql_type': routing_info.get('sql_type'),
+            'is_unique': routing_info.get('is_unique', False),
+        }
+    
+    return result
+
+
+@app.get("/api/schema/recommendations")
+def api_schema_recommendations():
+    """Get recommendations on which entity to use for different scenarios"""
+    return {
+        'entities': {
+            'structured_data': {
+                'backend': 'SQL (primary)',
+                'description': 'Main entity for structured data - supports all SQL fields',
+                'best_for': 'INSERT/UPDATE operations with SQL-routed fields (email, phone, etc)',
+                'recommended': True,
+                'note': 'Preferred for most use cases'
+            },
+            'users': {
+                'backend': 'MongoDB',
+                'description': 'MongoDB entity - only stores MONGO and BOTH-routed fields',
+                'best_for': 'MongoDB-specific data',
+                'recommended': False,
+                'warning': 'SQL-only fields like "email" will NOT be stored here'
+            }
+        },
+        'recommendation': 'Use entity="structured_data" for INSERT/UPDATE unless you specifically need MongoDB-only fields'
+    }
 
 
 @app.get("/api/tools/docs")
