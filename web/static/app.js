@@ -620,8 +620,18 @@ async function executeLogicalQuery(){
   
   // Format results
   if(resultsDiv) resultsDiv.style.display = 'block';
-  
-  if(resultsContent) resultsContent.textContent = JSON.stringify(result, null, 2);
+
+  if(!resultsContent){
+    return;
+  }
+
+  // For READ operations, render the data array as a table
+  if(operation === 'read' && result && result.status === 'success' && Array.isArray(result.data)){
+    resultsContent.innerHTML = formatResultsAsTable(result.data);
+  } else {
+    // Fallback: show raw JSON
+    resultsContent.textContent = JSON.stringify(result, null, 2);
+  }
 }
 
 function formatResultsAsTable(rows){
